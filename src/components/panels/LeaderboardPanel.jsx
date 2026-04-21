@@ -42,7 +42,7 @@ const LeaderboardPanel = ({ leaderboard, loading, currentRoll }) => {
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto pr-2 space-y-3">
+      <div className="flex-1 overflow-y-auto pr-2 space-y-3 max-h-[640px]">
         {leaderboard.map((student) => {
           const isCurrentUser = currentRoll && student.roll === currentRoll;
           return (

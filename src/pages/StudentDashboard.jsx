@@ -229,7 +229,7 @@ const StudentDashboard = () => {
                     </td>
                   </tr>
                 ) : (
-                  sessions.map((session) => (
+                  sessions.slice(0, 5).map((session) => (
                     <tr key={session.id} className="hover:bg-secondary/30 transition-colors">
                       <td className="py-4 font-medium">{fmtDate(session.entry_time)}</td>
                       <td className="py-4">{fmtTime(session.entry_time)}</td>
