@@ -6,6 +6,7 @@ import {
   Timer, 
   MapPin,
   ArrowUpRight,
+  ArrowRight,
   TrendingUp,
   Award,
   RefreshCw,
