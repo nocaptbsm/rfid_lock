@@ -33,7 +33,18 @@ const StudentHistory = () => {
       const fetchHistory = async () => {
         try {
           const res = await fetchStudentStats(user.roll);
-          const allSessions = res.weeklySessions || res.todaySessions || [];
+          const allSessions = [];
+          if (res.weeklySessions && res.weeklySessions.length > 0) {
+            allSessions.push(...res.weeklySessions);
+          }
+          if (res.todaySessions && res.todaySessions.length > 0) {
+            const existingIds = new Set(allSessions.map(s => s.id));
+            res.todaySessions.forEach(s => {
+              if (!existingIds.has(s.id)) allSessions.push(s);
+            });
+          }
+          // Sort descending
+          allSessions.sort((a, b) => new Date(b.entry_time) - new Date(a.entry_time));
           setHistory(allSessions);
         } catch (error) {
           console.error('Failed to fetch history:', error);
