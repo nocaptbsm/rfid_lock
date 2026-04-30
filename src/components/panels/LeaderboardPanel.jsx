@@ -46,7 +46,7 @@ const LeaderboardPanel = ({ leaderboard, loading, currentRoll, fullPage = false 
       </div>
 
       <div className={cn("flex-1 overflow-y-auto pr-2 space-y-3", !fullPage && "max-h-[640px]")}>
-        {leaderboard.map((student) => {
+        {(fullPage ? leaderboard : leaderboard.slice(0, 10)).map((student) => {
           const isCurrentUser = currentRoll && student.roll === currentRoll;
           const InnerContent = (
             <div 

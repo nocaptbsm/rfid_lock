@@ -197,6 +197,13 @@ const RfidLogTable = ({ logs, loading, onDeleteStudent, onRefresh }) => {
   const [search,     setSearch]  = useState('');
   const [typeFilter, setType]    = useState('ALL');
   const [sortDir,    setSortDir] = useState('desc');
+  const [page,       setPage]    = useState(1);
+  const pageSize = 20;
+
+  // Reset page to 1 when search or filters change
+  useEffect(() => {
+    setPage(1);
+  }, [search, typeFilter, sortDir]);
 
   const filtered = useMemo(() => {
     let rows = [...logs];
@@ -216,6 +223,9 @@ const RfidLogTable = ({ logs, loading, onDeleteStudent, onRefresh }) => {
     );
     return rows;
   }, [logs, search, typeFilter, sortDir, resolveName]);
+
+  const totalPages = Math.ceil(filtered.length / pageSize) || 1;
+  const paginated = filtered.slice((page - 1) * pageSize, page * pageSize);
 
   return (
     <div className="glass-card rounded-2xl overflow-hidden">
@@ -271,10 +281,10 @@ const RfidLogTable = ({ logs, loading, onDeleteStudent, onRefresh }) => {
             </thead>
             <tbody>
               <AnimatePresence mode="popLayout">
-                {filtered.length === 0 && (
+                {paginated.length === 0 && (
                   <tr><td colSpan={5} className="text-center py-12 text-muted-foreground text-sm">No records found</td></tr>
                 )}
-                {filtered.map((row, idx) => {
+                {paginated.map((row, idx) => {
                   const uid  = row.students?.uid  || '—';
                   const name = row.students?.name || uid;
                   return (
@@ -312,6 +322,34 @@ const RfidLogTable = ({ logs, loading, onDeleteStudent, onRefresh }) => {
           </table>
         )}
       </div>
+
+      {/* Pagination Footer */}
+      {filtered.length > pageSize && (
+        <div className="px-6 py-4 border-t border-border flex items-center justify-between bg-secondary/20">
+          <p className="text-xs text-muted-foreground">
+            Showing <span className="font-medium text-foreground">{((page - 1) * pageSize) + 1}</span> to{' '}
+            <span className="font-medium text-foreground">{Math.min(page * pageSize, filtered.length)}</span> of{' '}
+            <span className="font-medium text-foreground">{filtered.length}</span> records
+          </p>
+          <div className="flex items-center gap-2">
+            <button 
+              onClick={() => setPage(p => Math.max(1, p - 1))}
+              disabled={page === 1}
+              className="px-3 py-1.5 rounded-md text-xs font-medium bg-secondary text-foreground hover:bg-secondary/80 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              Previous
+            </button>
+            <span className="text-xs font-medium px-2">Page {page} of {totalPages}</span>
+            <button 
+              onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+              disabled={page === totalPages}
+              className="px-3 py-1.5 rounded-md text-xs font-medium bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              Next
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
