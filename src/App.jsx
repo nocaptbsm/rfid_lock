@@ -20,13 +20,17 @@ const ProtectedRoute = ({ children, adminOnly = false }) => {
   return children;
 };
 
-const Layout = ({ children }) => {
+const DashboardLayout = ({ children }) => {
   return (
-    <div className="min-h-screen bg-background text-foreground transition-colors duration-300 flex flex-col">
-      <TopBar />
-      <main className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {children}
-      </main>
+    <div className="dashboard-root dark text-foreground transition-colors duration-300">
+      <div className="dashboard-bg" />
+      <div className="dashboard-overlay" />
+      <div className="dashboard-content flex flex-col">
+        <TopBar />
+        <main className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          {children}
+        </main>
+      </div>
     </div>
   );
 };
@@ -52,7 +56,7 @@ function App() {
                   path="/student/:roll"
                   element={
                     <ProtectedRoute>
-                      <Layout><StudentDashboard /></Layout>
+                      <DashboardLayout><StudentDashboard /></DashboardLayout>
                     </ProtectedRoute>
                   }
                 />
@@ -62,7 +66,7 @@ function App() {
                   path="/admin"
                   element={
                     <ProtectedRoute adminOnly>
-                      <Layout><AdminDashboard /></Layout>
+                      <DashboardLayout><AdminDashboard /></DashboardLayout>
                     </ProtectedRoute>
                   }
                 />

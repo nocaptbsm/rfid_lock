@@ -1,41 +1,55 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { fetchStudentStats } from '@/api';
-import { Library, ArrowRight, AlertCircle, Loader2, ShieldCheck } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { ArrowRight, AlertCircle, Loader2, ShieldCheck, User, MapPin, BookOpen, Star, Wifi } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+
+/* ─── Image slideshow data ─────────────────────────────────────── */
+const SLIDES = [
+  { src: '/library1.png', caption: 'Peaceful Study Environment' },
+  { src: '/library2.png', caption: 'Students Deep in Focus' },
+  { src: '/library3.png', caption: 'Well-Organised Study Spaces' },
+];
+
+/* ─── Feature badges ───────────────────────────────────────────── */
+const FEATURES = [
+  { icon: BookOpen, label: 'Vast Book Collection' },
+  { icon: Wifi,     label: 'RFID Smart Access'   },
+  { icon: Star,     label: 'Friendly Staff'       },
+];
 
 const StudentLogin = () => {
-  const [roll, setRoll]     = useState('');
-  const [loading, setLoading] = useState(false);
-  const [error, setError]   = useState('');
-  const { login }           = useAuth();
-  const navigate            = useNavigate();
+  const [roll, setRoll]         = useState('');
+  const [loading, setLoading]   = useState(false);
+  const [error, setError]       = useState('');
+  const [slideIdx, setSlideIdx] = useState(0);
+  const { login }               = useAuth();
+  const navigate                = useNavigate();
+
+  /* auto-advance slideshow */
+  useEffect(() => {
+    const t = setInterval(() => setSlideIdx(i => (i + 1) % SLIDES.length), 4000);
+    return () => clearInterval(t);
+  }, []);
 
   const handleLogin = async (e) => {
     e.preventDefault();
-    if (!roll) return setError('Please enter your roll number');
+    if (!roll.trim()) return setError('Please enter your roll number');
 
     setLoading(true);
     setError('');
 
     try {
-      // 1. Attempt to fetch student stats from backend
       const result = await fetchStudentStats(roll.toUpperCase());
-      
-      // 2. If successful, use the student name from the DB
-      login({ 
-        roll: result.student.roll_no, 
-        name: result.student.name || 'Student', 
+      login({
+        roll: result.student.roll_no,
+        name: result.student.name || 'Student',
         uid: result.student.uid,
-        role: 'student' 
+        role: 'student',
       });
-      
       navigate(`/student/${result.student.roll_no}`);
     } catch (err) {
-      console.error('Login error:', err);
-      // If student doesn't exist, we could auto-register or show error.
-      // Recommendation: Show error if no record exists (must scan RFID once first)
       if (err.response?.status === 404) {
         setError('Record not found. Have you scanned your RFID card yet?');
       } else {
@@ -47,84 +61,222 @@ const StudentLogin = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center p-6 relative overflow-hidden">
-      {/* Background decorative blobs */}
-      <div className="absolute top-0 -left-4 w-72 h-72 bg-primary/10 rounded-full blur-3xl animate-pulse" />
-      <div className="absolute bottom-0 -right-4 w-96 h-96 bg-brand-600/10 rounded-full blur-3xl animate-pulse delay-700" />
+    <div className="landing-root">
+      {/* ════════════════════════════════════════════════════
+          LEFT PANEL — Branding
+      ════════════════════════════════════════════════════ */}
+      <div className="left-panel">
+        {/* Slideshow background */}
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={slideIdx}
+            className="slide-bg"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 1 }}
+            style={{ backgroundImage: `url(${SLIDES[slideIdx].src})` }}
+          />
+        </AnimatePresence>
 
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="w-full max-w-md space-y-4"
-      >
-        {/* ── Student Login card ── */}
-        <div className="glass-card rounded-2xl p-8 space-y-8">
-          <div className="text-center space-y-2">
-            <div className="mx-auto w-14 h-14 bg-primary rounded-2xl flex items-center justify-center text-primary-foreground shadow-xl shadow-primary/20 mb-4">
-              <Library size={32} />
+        {/* Dark gradient overlay */}
+        <div className="left-overlay" />
+
+        {/* Content */}
+        <div className="left-content">
+          {/* Logo + Name */}
+          <motion.div
+            className="brand-header"
+            initial={{ opacity: 0, y: -30 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2, duration: 0.7 }}
+          >
+            <div className="logo-ring">
+              <img src="/logo.png" alt="स्व-अध्ययन Library Logo" className="logo-img" />
             </div>
-            <h1 className="text-2xl font-bold tracking-tight">LibraryTrack</h1>
-            <p className="text-muted-foreground">Scan your RFID or enter Roll Number</p>
+            <div>
+              <h1 className="brand-name">स्व-अध्ययन Library</h1>
+              <p className="brand-tagline">Always Depend on Yourself, Never on Others</p>
+            </div>
+          </motion.div>
+
+          {/* Description */}
+          <motion.div
+            className="brand-body"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.4, duration: 0.7 }}
+          >
+            <p className="brand-desc">
+              Welcome to <strong>स्व-अध्ययन Library</strong> — a sanctuary of knowledge 
+              and focused learning. We provide a serene, distraction-free environment 
+              equipped with an extensive collection of books, journals, and study resources 
+              to fuel every student's ambition.
+            </p>
+            <p className="brand-desc" style={{ marginTop: '0.75rem' }}>
+              Our warm, knowledgeable staff are always ready to guide you to exactly 
+              what you need — because at स्व-अध्ययन, your growth is our mission.
+            </p>
+          </motion.div>
+
+          {/* Feature pills */}
+          <motion.div
+            className="feature-pills"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.6, duration: 0.7 }}
+          >
+            {FEATURES.map(({ icon: Icon, label }) => (
+              <span key={label} className="feature-pill">
+                <Icon size={14} /> {label}
+              </span>
+            ))}
+          </motion.div>
+
+          {/* Address */}
+          <motion.div
+            className="address-row"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.8, duration: 0.7 }}
+          >
+            <MapPin size={15} className="address-pin" />
+            <span>Near Grand Mall, Muzaffarpur, Bihar</span>
+          </motion.div>
+
+          {/* Slide caption */}
+          <div className="slide-caption-bar">
+            <AnimatePresence mode="wait">
+              <motion.span
+                key={slideIdx}
+                initial={{ opacity: 0, x: 10 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -10 }}
+                transition={{ duration: 0.4 }}
+                className="slide-caption-text"
+              >
+                {SLIDES[slideIdx].caption}
+              </motion.span>
+            </AnimatePresence>
+            <div className="slide-dots">
+              {SLIDES.map((_, i) => (
+                <button
+                  key={i}
+                  onClick={() => setSlideIdx(i)}
+                  className={`slide-dot ${i === slideIdx ? 'active' : ''}`}
+                  aria-label={`Go to slide ${i + 1}`}
+                />
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ════════════════════════════════════════════════════
+          RIGHT PANEL — Login Options
+      ════════════════════════════════════════════════════ */}
+      <div className="right-panel">
+        <motion.div
+          className="right-content"
+          initial={{ opacity: 0, x: 40 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ duration: 0.6 }}
+        >
+          <div className="right-header">
+            <h2 className="right-title">Welcome Back</h2>
+            <p className="right-subtitle">Access your portal to continue your journey</p>
           </div>
 
-          <form onSubmit={handleLogin} className="space-y-4">
-            <div className="space-y-2">
-              <label htmlFor="roll" className="text-sm font-medium pl-1">Roll Number</label>
-              <input
-                id="roll"
-                type="text"
-                placeholder="e.g. 21CS042"
-                value={roll}
-                onChange={(e) => setRoll(e.target.value)}
-                className="w-full px-4 py-3 bg-secondary/50 border border-border rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all uppercase placeholder:normal-case"
-              />
+          {/* ── Student Login Card ── */}
+          <div className="login-card student-card">
+            <div className="login-card-header">
+              <div className="card-icon student-icon">
+                <User size={20} />
+              </div>
+              <div>
+                <h3 className="card-title">Student Portal</h3>
+                <p className="card-sub">View attendance & seat status</p>
+              </div>
             </div>
 
-            {error && (
-              <motion.div
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                className="flex items-center gap-2 text-destructive text-sm bg-destructive/10 p-3 rounded-lg"
+            <form onSubmit={handleLogin} className="login-form">
+              <div className="field-group">
+                <label htmlFor="roll" className="field-label">Roll Number</label>
+                <input
+                  id="roll"
+                  type="text"
+                  placeholder="e.g. 21CS042"
+                  value={roll}
+                  onChange={(e) => setRoll(e.target.value)}
+                  className="field-input"
+                  autoComplete="off"
+                />
+              </div>
+
+              <AnimatePresence>
+                {error && (
+                  <motion.div
+                    key="error"
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                    className="error-msg"
+                  >
+                    <AlertCircle size={15} />
+                    <span>{error}</span>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              <button
+                type="submit"
+                disabled={loading}
+                className="btn-primary"
               >
-                <AlertCircle size={16} />
-                <span>{error}</span>
-              </motion.div>
-            )}
+                {loading ? (
+                  <Loader2 size={18} className="spin" />
+                ) : (
+                  <>Login to Portal <ArrowRight size={16} /></>
+                )}
+              </button>
+            </form>
 
-            <button
-              disabled={loading}
-              className="w-full py-3.5 bg-primary text-primary-foreground rounded-xl font-semibold shadow-lg shadow-primary/25 flex items-center justify-center gap-2 hover:translate-y-[-2px] active:scale-[0.98] transition-all disabled:opacity-50 disabled:translate-y-0"
-            >
-              {loading ? (
-                <Loader2 size={20} className="animate-spin" />
-              ) : (
-                <>Login to Portal <ArrowRight size={18} /></>
-              )}
-            </button>
-          </form>
+            <p className="rfid-hint">
+              🔖 RFID Reader Active · Point your card to the scanner
+            </p>
+          </div>
 
-          <p className="text-xs text-center text-muted-foreground">
-            RFID Reader Active • Point your card to the scanner
-          </p>
-        </div>
+          {/* ── Divider ── */}
+          <div className="or-divider">
+            <span className="or-line" />
+            <span className="or-text">or</span>
+            <span className="or-line" />
+          </div>
 
-        {/* ── Admin Portal entry ── */}
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-        >
-          <Link
-            to="/admin-login"
-            id="admin-portal-btn"
-            className="w-full flex items-center justify-center gap-2 py-3 px-6 rounded-xl border border-border bg-secondary/40 hover:bg-secondary/70 text-sm font-medium text-muted-foreground hover:text-foreground transition-all group"
-          >
-            <ShieldCheck size={16} className="text-primary group-hover:scale-110 transition-transform" />
-            Admin Portal
-            <ArrowRight size={14} className="opacity-0 group-hover:opacity-100 -translate-x-1 group-hover:translate-x-0 transition-all" />
+          {/* ── Admin Portal Card ── */}
+          <Link to="/admin-login" id="admin-portal-btn" className="login-card admin-card">
+            <div className="login-card-header" style={{ pointerEvents: 'none' }}>
+              <div className="card-icon admin-icon">
+                <ShieldCheck size={20} />
+              </div>
+              <div>
+                <h3 className="card-title">Admin Portal</h3>
+                <p className="card-sub">Manage members, seats & reports</p>
+              </div>
+            </div>
+            <div className="admin-arrow">
+              <span>Access Admin Dashboard</span>
+              <ArrowRight size={16} />
+            </div>
           </Link>
         </motion.div>
-      </motion.div>
+
+        {/* Powered by D Block */}
+        <div className="powered-by">
+          <span>Powered by</span>
+          <span className="powered-brand">D Block</span>
+        </div>
+      </div>
     </div>
   );
 };

@@ -14,12 +14,10 @@ import {
   X
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
-import { useTheme } from '@/context/ThemeContext';
 import { cn } from '@/utils/cn';
 
 const TopBar = () => {
   const { user, logout, isAdmin } = useAuth();
-  const { theme, toggleTheme } = useTheme();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const studentLinks = [
@@ -35,7 +33,7 @@ const TopBar = () => {
   const links = isAdmin ? adminLinks : studentLinks;
 
   return (
-    <header className="h-16 bg-card border-b border-border sticky top-0 z-40 transition-colors duration-400">
+    <header className="h-16 topbar-glass sticky top-0 z-40 transition-colors duration-400">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-full flex items-center justify-between">
         
         {/* Left Side: Brand & Navigation */}
@@ -87,10 +85,6 @@ const TopBar = () => {
               className="pl-9 pr-4 py-1.5 bg-background border border-border rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 w-48 transition-all"
             />
           </div>
-
-          <button onClick={toggleTheme} className="p-2 text-muted-foreground hover:bg-secondary rounded-full transition-colors">
-            {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
-          </button>
 
           <div className="h-6 w-px bg-border mx-1 hidden sm:block"></div>
 
