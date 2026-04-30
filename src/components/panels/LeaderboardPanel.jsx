@@ -1,8 +1,11 @@
 import React from 'react';
 import { Award, Trophy, Medal } from 'lucide-react';
 import { cn } from '@/utils/cn';
+import { useAuth } from '@/context/AuthContext';
+import { Link } from 'react-router-dom';
 
-const LeaderboardPanel = ({ leaderboard, loading, currentRoll }) => {
+const LeaderboardPanel = ({ leaderboard, loading, currentRoll, fullPage = false }) => {
+  const { isAdmin } = useAuth();
   if (loading) {
     return (
       <div className="glass-card rounded-2xl p-6 flex flex-col items-center justify-center h-full min-h-[300px]">
@@ -42,14 +45,13 @@ const LeaderboardPanel = ({ leaderboard, loading, currentRoll }) => {
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto pr-2 space-y-3 max-h-[640px]">
+      <div className={cn("flex-1 overflow-y-auto pr-2 space-y-3", !fullPage && "max-h-[640px]")}>
         {leaderboard.map((student) => {
           const isCurrentUser = currentRoll && student.roll === currentRoll;
-          return (
+          const InnerContent = (
             <div 
-              key={student.roll}
               className={cn(
-                "flex items-center justify-between p-3 rounded-xl transition-colors border",
+                "flex items-center justify-between p-3 rounded-xl transition-colors border w-full",
                 isCurrentUser 
                   ? "bg-primary/5 border-primary/20" 
                   : "bg-secondary/30 border-transparent hover:bg-secondary/60"
@@ -59,7 +61,7 @@ const LeaderboardPanel = ({ leaderboard, loading, currentRoll }) => {
                 <div className="w-8 flex items-center justify-center">
                   {getRankIcon(student.rank)}
                 </div>
-                <div>
+                <div className="text-left">
                   <p className={cn("text-sm font-medium", isCurrentUser && "text-primary")}>
                     {student.name} {isCurrentUser && "(You)"}
                   </p>
@@ -69,6 +71,16 @@ const LeaderboardPanel = ({ leaderboard, loading, currentRoll }) => {
               <div className="text-right">
                 <p className="text-sm font-bold">{student.totalHours}h</p>
               </div>
+            </div>
+          );
+
+          return isAdmin ? (
+            <Link key={student.roll} to={`/student/${student.roll}`} className="block w-full">
+              {InnerContent}
+            </Link>
+          ) : (
+            <div key={student.roll} className="w-full">
+              {InnerContent}
             </div>
           );
         })}

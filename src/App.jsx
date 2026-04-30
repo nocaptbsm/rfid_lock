@@ -11,6 +11,7 @@ const AdminLogin   = React.lazy(() => import('./pages/AdminLogin'));
 const StudentDashboard = React.lazy(() => import('./pages/StudentDashboard'));
 const StudentHistory = React.lazy(() => import('./pages/StudentHistory'));
 const AdminDashboard   = React.lazy(() => import('./pages/AdminDashboard'));
+const AdminReports = React.lazy(() => import('./pages/AdminReports'));
 
 const ProtectedRoute = ({ children, adminOnly = false }) => {
   const { user, isAdmin } = useAuth();
@@ -77,6 +78,15 @@ function App() {
                   element={
                     <ProtectedRoute adminOnly>
                       <DashboardLayout><AdminDashboard /></DashboardLayout>
+                    </ProtectedRoute>
+                  }
+                />
+
+                <Route
+                  path="/admin/reports"
+                  element={
+                    <ProtectedRoute adminOnly>
+                      <DashboardLayout><AdminReports /></DashboardLayout>
                     </ProtectedRoute>
                   }
                 />

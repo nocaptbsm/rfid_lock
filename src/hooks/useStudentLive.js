@@ -46,7 +46,7 @@ export const useStudentLive = (roll) => {
         }, 0));
         monthlyData.push({
           day: i === 0 ? 'Today' : days[d.getDay()],
-          date: d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+          date: d.getDate().toString(),
           hours: Number((totalMinutes / 60).toFixed(2))
         });
       }

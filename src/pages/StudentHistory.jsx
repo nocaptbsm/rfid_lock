@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { History, Calendar, Clock, ArrowLeft } from 'lucide-react';
-import { fetchStudentHistory } from '@/api';
+import { fetchStudentStats } from '@/api';
 import { useAuth } from '@/context/AuthContext';
 import { Link } from 'react-router-dom';
 import StatusBadge from '@/components/cards/StatusBadge';
@@ -32,9 +32,9 @@ const StudentHistory = () => {
     if (user?.roll) {
       const fetchHistory = async () => {
         try {
-          const res = await fetchStudentHistory(user.roll);
-          // Backend might return an array or an object { sessions: [...] }
-          setHistory(Array.isArray(res) ? res : (res.sessions || []));
+          const res = await fetchStudentStats(user.roll);
+          const allSessions = res.weeklySessions || res.todaySessions || [];
+          setHistory(allSessions);
         } catch (error) {
           console.error('Failed to fetch history:', error);
         } finally {

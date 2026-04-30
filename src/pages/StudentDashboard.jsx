@@ -1,5 +1,5 @@
 import React from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 import { 
   Clock, 
   Calendar, 
@@ -43,6 +43,9 @@ const fmtDate = (iso) => {
 
 const StudentDashboard = () => {
   const { user } = useAuth();
+  const { roll } = useParams();
+  const targetRoll = roll || user?.roll;
+
   const {
     profile,
     sessions,
@@ -60,7 +63,7 @@ const StudentDashboard = () => {
     todayExit,
     totalMinutes,
     lastScanTime
-  } = useStudentLive(user?.roll);
+  } = useStudentLive(targetRoll);
 
   const { leaderboard, loading: leaderLoading } = useLeaderboard();
 
@@ -164,8 +167,8 @@ const StudentDashboard = () => {
       </div>
 
       {/* Row 2: Charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <motion.div variants={item} className="lg:col-span-2 glass-card rounded-2xl p-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <motion.div variants={item} className="glass-card rounded-2xl p-6">
           <div className="flex items-center justify-between mb-8">
             <div>
               <h3 className="text-lg font-semibold">Weekly Activity</h3>
