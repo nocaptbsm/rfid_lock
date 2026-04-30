@@ -1,4 +1,5 @@
 import React from 'react';
+import { Link } from 'react-router-dom';
 import { 
   Clock, 
   Calendar, 
@@ -46,6 +47,7 @@ const StudentDashboard = () => {
     profile,
     sessions,
     weeklyData,
+    monthlyData,
     weeklyAvgHours,
     weeklyTotalMinutes,
     inside,
@@ -183,11 +185,20 @@ const StudentDashboard = () => {
           <div className="flex items-center justify-between mb-8">
             <div>
               <h3 className="text-lg font-semibold">Monthly Summary</h3>
-              <p className="text-sm text-muted-foreground">Engagement trend for April</p>
+              <p className="text-sm text-muted-foreground">Engagement trend for {new Date().toLocaleString('default', { month: 'long' })}</p>
             </div>
           </div>
-          <div className="flex-1 flex flex-col justify-center">
-            <div className="mt-auto grid grid-cols-2 gap-4">
+          <div className="flex-1 flex flex-col justify-center gap-4">
+            {monthlyData?.length > 0 ? (
+              <div className="h-[140px]">
+                <MonthlyLineChart data={monthlyData} />
+              </div>
+            ) : (
+              <div className="h-[140px] flex items-center justify-center border border-dashed border-border rounded-xl">
+                <p className="text-sm text-muted-foreground italic">No data available yet</p>
+              </div>
+            )}
+            <div className="grid grid-cols-2 gap-4">
               <div className="p-4 rounded-2xl bg-secondary/80 border border-border">
                 <p className="text-xs text-muted-foreground uppercase font-semibold tracking-wider mb-1">Weekly Total</p>
                 <p className="text-2xl font-bold">{weeklyTotalMinutes !== undefined ? `${(weeklyTotalMinutes / 60).toFixed(1)}h` : '--'}</p>
@@ -206,9 +217,9 @@ const StudentDashboard = () => {
         <motion.div variants={item} className="lg:col-span-2 glass-card rounded-2xl p-6 h-full">
           <div className="flex items-center justify-between mb-6">
             <h3 className="text-lg font-semibold">Recent Sessions</h3>
-            <button className="text-sm text-primary font-medium flex items-center gap-1 hover:underline">
+            <Link to="/history" className="text-sm text-primary font-medium flex items-center gap-1 hover:underline">
               View All <ArrowUpRight size={14} />
-            </button>
+            </Link>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm text-left">

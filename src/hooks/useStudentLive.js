@@ -6,6 +6,7 @@ export const useStudentLive = (roll) => {
     profile: null,
     sessions: [],
     weeklyData: [],
+    monthlyData: [],
     inside: false,
     loading: true,
     error: '',
@@ -23,31 +24,34 @@ export const useStudentLive = (roll) => {
       const allSessions = result.weeklySessions || result.todaySessions || [];
       const todaySessions = result.todaySessions || [];
       
-      const weeklyData = [];
+      const monthlyData = [];
       const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
       const today = new Date();
       today.setHours(0, 0, 0, 0);
 
-      for (let i = 6; i >= 0; i--) {
+      for (let i = 29; i >= 0; i--) {
         const d = new Date(today);
         d.setDate(d.getDate() - i);
         const daySessions = allSessions.filter(s => {
           const sDate = new Date(s.entry_time);
           return sDate.toDateString() === d.toDateString();
         });
-        const totalMinutes = daySessions.reduce((acc, s) => {
+        const totalMinutes = Math.min(1440, daySessions.reduce((acc, s) => {
           let mins = s.duration_minutes || 0;
           if (!s.exit_time) {
             const start = new Date(s.entry_time);
             mins = Math.round((new Date() - start) / 60000);
           }
           return acc + mins;
-        }, 0);
-        weeklyData.push({
+        }, 0));
+        monthlyData.push({
           day: i === 0 ? 'Today' : days[d.getDay()],
-          hours: Number((totalMinutes / 60).toFixed(2)) // Using 2 decimals so test minutes aren't totally wiped.
+          date: d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+          hours: Number((totalMinutes / 60).toFixed(2))
         });
       }
+
+      const weeklyData = monthlyData.slice(-7);
 
       const weeklyTotalMinutes = weeklyData.reduce((acc, d) => acc + (d.hours * 60), 0);
       const weeklyAvgHours = Number((weeklyTotalMinutes / 60 / 7).toFixed(1));
@@ -56,6 +60,7 @@ export const useStudentLive = (roll) => {
         profile: result.student,
         sessions: todaySessions,
         weeklyData,
+        monthlyData,
         weeklyTotalMinutes,
         weeklyAvgHours,
         inside: result.isCurrentlyInside,
@@ -108,6 +113,7 @@ export const useStudentLive = (roll) => {
               ...prev,
               sessions: [],
               weeklyData: prev.weeklyData.map(d => ({ ...d, hours: 0 })),
+              monthlyData: prev.monthlyData?.map(d => ({ ...d, hours: 0 })) || [],
               inside: false,
               loading: false,
               lastSync: new Date()

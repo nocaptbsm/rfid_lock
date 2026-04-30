@@ -9,6 +9,7 @@ import TopBar from './components/layout/TopBar';
 const StudentLogin = React.lazy(() => import('./pages/StudentLogin'));
 const AdminLogin   = React.lazy(() => import('./pages/AdminLogin'));
 const StudentDashboard = React.lazy(() => import('./pages/StudentDashboard'));
+const StudentHistory = React.lazy(() => import('./pages/StudentHistory'));
 const AdminDashboard   = React.lazy(() => import('./pages/AdminDashboard'));
 
 const ProtectedRoute = ({ children, adminOnly = false }) => {
@@ -57,6 +58,15 @@ function App() {
                   element={
                     <ProtectedRoute>
                       <DashboardLayout><StudentDashboard /></DashboardLayout>
+                    </ProtectedRoute>
+                  }
+                />
+                
+                <Route
+                  path="/history"
+                  element={
+                    <ProtectedRoute>
+                      <DashboardLayout><StudentHistory /></DashboardLayout>
                     </ProtectedRoute>
                   }
                 />
