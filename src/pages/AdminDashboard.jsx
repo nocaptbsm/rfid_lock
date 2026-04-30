@@ -354,8 +354,24 @@ const AdminDashboard = () => {
   };
 
   const todayLogs = logs.filter(l => isToday(l.timestamp));
-  const totalEntries = todayLogs.filter(l => l.type === 'ENTRY').length;
-  const totalExits   = todayLogs.filter(l => l.type === 'EXIT').length;
+  const uniqueEntriesToday = new Set(todayLogs.filter(l => l.type === 'ENTRY').map(l => l.students?.uid || l.uid)).size;
+
+  // Calculate daily average unique entries
+  const entriesByDate = {};
+  logs.filter(l => l.type === 'ENTRY').forEach(l => {
+    if (!l.timestamp) return;
+    const d = new Date(l.timestamp).toLocaleDateString(); // just get date string
+    const uid = l.students?.uid || l.uid;
+    if (!entriesByDate[d]) entriesByDate[d] = new Set();
+    entriesByDate[d].add(uid);
+  });
+  
+  const totalDaysWithEntries = Object.keys(entriesByDate).length;
+  let sumOfUniqueDailyEntries = 0;
+  Object.values(entriesByDate).forEach(set => {
+    sumOfUniqueDailyEntries += set.size;
+  });
+  const dailyAvg = totalDaysWithEntries > 0 ? Math.round(sumOfUniqueDailyEntries / totalDaysWithEntries) : 0;
 
   return (
     <motion.div variants={container} initial="hidden" animate="show" className="space-y-8">
@@ -387,8 +403,8 @@ const AdminDashboard = () => {
       {/* Stats */}
       <motion.div variants={item} className="grid grid-cols-1 sm:grid-cols-3 gap-5">
         <StatCard title="Currently Inside"  value={live.length}   icon={Users}    color="primary" loading={loading} />
-        <StatCard title="Total Entries Today" value={totalEntries} icon={LogIn}    color="emerald" loading={loading} />
-        <StatCard title="Total Exits Today"   value={totalExits}   icon={Activity} color="amber"   loading={loading} />
+        <StatCard title="Total Entries Today" value={uniqueEntriesToday} icon={LogIn}    color="emerald" loading={loading} />
+        <StatCard title="Daily Avg Entries"   value={dailyAvg}   icon={Activity} color="amber"   loading={loading} />
       </motion.div>
 
       {/* Live sessions & Leaderboard */}
