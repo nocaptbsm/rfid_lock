@@ -344,8 +344,18 @@ const AdminDashboard = () => {
   const item = { hidden: { opacity: 0, y: 18 }, show: { opacity: 1, y: 0 } };
 
   // Derived stats
-  const totalEntries = logs.filter(l => l.type === 'ENTRY').length;
-  const totalExits   = logs.filter(l => l.type === 'EXIT').length;
+  const isToday = (ts) => {
+    if (!ts) return false;
+    const d = new Date(ts);
+    const today = new Date();
+    return d.getDate() === today.getDate() &&
+           d.getMonth() === today.getMonth() &&
+           d.getFullYear() === today.getFullYear();
+  };
+
+  const todayLogs = logs.filter(l => isToday(l.timestamp));
+  const totalEntries = todayLogs.filter(l => l.type === 'ENTRY').length;
+  const totalExits   = todayLogs.filter(l => l.type === 'EXIT').length;
 
   return (
     <motion.div variants={container} initial="hidden" animate="show" className="space-y-8">
