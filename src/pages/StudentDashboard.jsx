@@ -219,9 +219,12 @@ const StudentDashboard = () => {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <motion.div variants={item} className="lg:col-span-2 glass-card rounded-2xl p-6 h-full">
           <div className="flex items-center justify-between mb-6">
-            <h3 className="text-lg font-semibold">Recent Sessions</h3>
-            <Link to="/history" className="text-sm text-primary font-medium flex items-center gap-1 hover:underline">
-              View All <ArrowUpRight size={14} />
+            <div>
+              <h3 className="text-lg font-semibold">Recent Sessions</h3>
+              <p className="text-sm text-muted-foreground">Your latest library visits</p>
+            </div>
+            <Link to={`/student/${targetRoll}/history`} className="text-sm font-medium text-primary hover:underline flex items-center gap-1">
+              View All <ArrowRight size={14} />
             </Link>
           </div>
           <div className="overflow-x-auto">

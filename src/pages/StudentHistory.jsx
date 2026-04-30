@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 import { History, Calendar, Clock, ArrowLeft } from 'lucide-react';
 import { fetchStudentStats } from '@/api';
 import { useAuth } from '@/context/AuthContext';
-import { Link } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 import StatusBadge from '@/components/cards/StatusBadge';
 
 const fmtDate = (iso) => {
@@ -25,14 +25,17 @@ const fmtDuration = (mins) => {
 
 const StudentHistory = () => {
   const { user } = useAuth();
+  const { roll } = useParams();
+  const targetRoll = roll || user?.roll;
+  
   const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (user?.roll) {
+    if (targetRoll) {
       const fetchHistory = async () => {
         try {
-          const res = await fetchStudentStats(user.roll);
+          const res = await fetchStudentStats(targetRoll);
           const allSessions = [];
           if (res.weeklySessions && res.weeklySessions.length > 0) {
             allSessions.push(...res.weeklySessions);
@@ -54,13 +57,13 @@ const StudentHistory = () => {
       };
       fetchHistory();
     }
-  }, [user]);
+  }, [targetRoll]);
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <Link to={`/student/${user?.roll}`} className="p-2 hover:bg-white/5 rounded-full transition-colors text-white/70 hover:text-white">
+          <Link to={`/student/${targetRoll}`} className="p-2 hover:bg-white/5 rounded-full transition-colors text-white/70 hover:text-white">
             <ArrowLeft size={20} />
           </Link>
           <div>

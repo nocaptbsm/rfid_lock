@@ -22,7 +22,7 @@ const TopBar = () => {
 
   const studentLinks = [
     { name: 'Dashboard', icon: LayoutDashboard, path: `/student/${user?.roll}` },
-    { name: 'History', icon: History, path: '/history' },
+    { name: 'History', icon: History, path: `/student/${user?.roll}/history` },
   ];
 
   const adminLinks = [

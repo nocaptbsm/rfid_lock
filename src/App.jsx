@@ -64,7 +64,7 @@ function App() {
                 />
                 
                 <Route
-                  path="/history"
+                  path="/student/:roll/history"
                   element={
                     <ProtectedRoute>
                       <DashboardLayout><StudentHistory /></DashboardLayout>
