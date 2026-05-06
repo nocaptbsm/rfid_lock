@@ -199,11 +199,17 @@ router.get('/admin/cards', requireAdmin, async (req, res) => {
  */
 router.post('/admin/cards', requireAdmin, async (req, res) => {
   try {
-    const { uid, name, roll_no } = req.body;
-    if (!uid || !name || !roll_no) {
-      return res.status(400).json({ error: 'uid, name, and roll_no are required' });
+    const { uid, name, roll_no, role } = req.body;
+    const isMaster = role === 'MASTER';
+    
+    if (!uid) {
+      return res.status(400).json({ error: 'uid is required' });
     }
-    const result = await attendanceService.registerCard(uid, name, roll_no);
+    if (!isMaster && (!name || !roll_no)) {
+      return res.status(400).json({ error: 'name and roll_no are required for students' });
+    }
+    
+    const result = await attendanceService.registerCard(uid, name || '', roll_no || '', role || 'STUDENT');
     res.status(201).json(result);
   } catch (error) {
     res.status(400).json({ error: error.message });

@@ -157,7 +157,7 @@ const attendanceService = {
   /**
    * Register a new RFID card (admin action)
    */
-  registerCard: async (uid, name, rollNo) => {
+  registerCard: async (uid, name, rollNo, role = 'STUDENT') => {
     const normalizedUid = uid.toUpperCase();
     
     const { data: existing } = await supabase
@@ -174,9 +174,10 @@ const attendanceService = {
       .from('students')
       .insert({
         uid: normalizedUid,
-        name: name.trim(),
-        roll_no: rollNo.trim(),
-        status: 'AUTHORIZED'
+        name: role === 'MASTER' ? 'Master Key' : name.trim(),
+        roll_no: role === 'MASTER' ? `MASTER_${normalizedUid}` : rollNo.trim(),
+        status: 'AUTHORIZED',
+        role: role
       })
       .select()
       .single();
@@ -221,7 +222,7 @@ const attendanceService = {
   getAllCards: async () => {
     const { data, error } = await supabase
       .from('students')
-      .select('uid, name, roll_no, status, created_at')
+      .select('uid, name, roll_no, status, role, created_at')
       .order('created_at', { ascending: false });
 
     if (error) throw error;
@@ -415,7 +416,7 @@ const attendanceService = {
 
     const { data: sessions, error: sessionError } = await supabase
       .from('sessions')
-      .select('*, students(name, roll_no, uid)')
+      .select('*, students(name, roll_no, uid, role)')
       .gte('entry_time', startOfMonth.toISOString());
 
     if (sessionError) throw sessionError;
@@ -424,6 +425,8 @@ const attendanceService = {
     const now = new Date();
 
     sessions.forEach(s => {
+      if (s.students?.role === 'MASTER') return;
+
       const roll = s.students?.roll_no || s.student_uid;
       const name = s.students?.name || 'Unknown';
       
