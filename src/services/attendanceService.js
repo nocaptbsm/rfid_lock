@@ -60,19 +60,15 @@ const attendanceService = {
     const timestamp = new Date().toISOString();
 
     if (!authorized) {
-      // Log the denied scan for audit trail
+      // Log the denied scan for audit trail in lightweight security_log
       try {
-        await supabase.from('scans').insert({
-          student_uid: student?.uid || normalizedUid,
-          type: 'DENIED',
-          timestamp,
-          device_id: deviceId || null,
-          authorized: false
+        await supabase.from('security_log').insert({
+          uid: student?.uid || normalizedUid,
+          reason: status === 'SUSPENDED' ? 'CARD_SUSPENDED' : 'UNKNOWN_CARD',
+          device_id: deviceId || null
         });
       } catch (logError) {
-        // If the UID doesn't exist in students table, we can't FK-reference it
-        // Log to a separate security log instead
-        console.warn(`[SECURITY] Unauthorized scan attempt: UID=${normalizedUid}, status=${status}, device=${deviceId}`);
+        console.warn(`[SECURITY] Failed to write security log:`, logError.message);
       }
 
       return {
@@ -108,14 +104,6 @@ const attendanceService = {
         })
         .eq('id', activeSession.id);
 
-      await supabase.from('scans').insert({
-        student_uid: normalizedUid,
-        type: 'EXIT',
-        timestamp,
-        device_id: deviceId || null,
-        authorized: true
-      });
-
       return {
         authorized: true,
         event: 'EXIT',
@@ -131,16 +119,9 @@ const attendanceService = {
         .insert({ 
           student_uid: normalizedUid, 
           entry_time: timestamp,
-          status: 'ACTIVE'
+          status: 'ACTIVE',
+          device_id: deviceId || null
         });
-
-      await supabase.from('scans').insert({
-        student_uid: normalizedUid,
-        type: 'ENTRY',
-        timestamp,
-        device_id: deviceId || null,
-        authorized: true
-      });
 
       return {
         authorized: true,
@@ -242,30 +223,29 @@ const attendanceService = {
     return data.map(s => s.uid);
   },
 
-  /**
-   * Get unauthorized / denied scan log (security audit)
-   */
   getSecurityLog: async (limit = 100) => {
     const { data, error } = await supabase
-      .from('scans')
-      .select(`
-        id,
-        student_uid,
-        type,
-        timestamp,
-        device_id,
-        authorized,
-        students (
-          name,
-          roll_no,
-          status
-        )
-      `)
-      .eq('authorized', false)
-      .order('timestamp', { ascending: false })
+      .from('security_log')
+      .select('id, uid, reason, device_id, created_at')
+      .order('created_at', { ascending: false })
       .limit(limit);
 
     if (error) throw error;
+    
+    // Map to expected frontend format
+    return data.map(log => ({
+      id: log.id,
+      student_uid: log.uid,
+      type: 'DENIED',
+      timestamp: log.created_at,
+      device_id: log.device_id,
+      authorized: false,
+      students: {
+        name: log.reason, // Display reason in name column
+        roll_no: '',
+        status: 'DENIED'
+      }
+    }));
     return data;
   },
 
@@ -290,25 +270,62 @@ const attendanceService = {
   },
 
   getAllScans: async (limit = 200) => {
-    const { data, error } = await supabase
-      .from('scans')
-      .select(`
-        id,
-        type,
-        timestamp,
-        device_id,
-        authorized,
-        students (
-          uid,
-          name,
-          roll_no
-        )
-      `)
-      .order('timestamp', { ascending: false })
+    // Dynamically compute the scan timeline from sessions and security_log
+    const { data: sessions, error: sessErr } = await supabase
+      .from('sessions')
+      .select('id, entry_time, exit_time, device_id, students(uid, name, roll_no)')
+      .order('entry_time', { ascending: false })
       .limit(limit);
 
-    if (error) throw error;
-    return data;
+    if (sessErr) throw sessErr;
+
+    const { data: secLogs, error: secErr } = await supabase
+      .from('security_log')
+      .select('id, uid, reason, device_id, created_at')
+      .order('created_at', { ascending: false })
+      .limit(limit);
+
+    if (secErr) throw secErr;
+
+    let timeline = [];
+    
+    sessions.forEach(s => {
+      timeline.push({
+        id: `entry_${s.id}`,
+        type: 'ENTRY',
+        timestamp: s.entry_time,
+        device_id: s.device_id,
+        authorized: true,
+        students: s.students
+      });
+      
+      if (s.exit_time) {
+        timeline.push({
+          id: `exit_${s.id}`,
+          type: 'EXIT',
+          timestamp: s.exit_time,
+          device_id: s.device_id, // Note: device_id might be from entry, but that's fine for logs
+          authorized: true,
+          students: s.students
+        });
+      }
+    });
+    
+    secLogs.forEach(sl => {
+      timeline.push({
+        id: `sec_${sl.id}`,
+        type: 'DENIED',
+        timestamp: sl.created_at,
+        device_id: sl.device_id,
+        authorized: false,
+        students: { uid: sl.uid, name: sl.reason, roll_no: '' }
+      });
+    });
+    
+    // Sort combined timeline by timestamp desc
+    timeline.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+    
+    return timeline.slice(0, limit);
   },
 
   getAllStudents: async () => {
@@ -366,13 +383,13 @@ const attendanceService = {
     
     if (sessionsError) throw sessionsError;
 
-    // 2. Clear scans
-    const { error: scansError } = await supabase
-      .from('scans')
+    // 2. Clear security log
+    const { error: secError } = await supabase
+      .from('security_log')
       .delete()
       .filter('id', 'gt', 0);
     
-    if (scansError) throw scansError;
+    if (secError) throw secError;
 
     return { message: 'All logs cleared successfully' };
   },
@@ -386,13 +403,13 @@ const attendanceService = {
     
     if (sessionsError) throw sessionsError;
 
-    // 2. Clear scans for this specific student
-    const { error: scansError } = await supabase
-      .from('scans')
+    // 2. Clear security log for this student
+    const { error: secError } = await supabase
+      .from('security_log')
       .delete()
-      .eq('student_uid', uid);
+      .eq('uid', uid);
     
-    if (scansError) throw scansError;
+    if (secError) throw secError;
 
     return { message: `Records cleared for UID: ${uid}`, uid };
   },
@@ -465,6 +482,31 @@ const attendanceService = {
     if (error) {
       console.error('[NONCE] Cleanup error:', error.message);
     }
+  },
+
+  /**
+   * Cleanup old sessions and security logs
+   */
+  cleanupOldLogs: async () => {
+    const cutoff30d = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+    const cutoff7d = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+    
+    // Delete completed sessions older than 30 days
+    const { error: sessionErr } = await supabase
+      .from('sessions')
+      .delete()
+      .eq('status', 'COMPLETED')
+      .lt('entry_time', cutoff30d);
+      
+    if (sessionErr) console.error('[CLEANUP] Sessions:', sessionErr.message);
+
+    // Delete old security logs older than 7 days
+    const { error: secErr } = await supabase
+      .from('security_log')
+      .delete()
+      .lt('created_at', cutoff7d);
+      
+    if (secErr) console.error('[CLEANUP] Security log:', secErr.message);
   }
 };
 

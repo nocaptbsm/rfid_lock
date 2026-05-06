@@ -19,6 +19,17 @@ setInterval(() => {
   );
 }, NONCE_CLEANUP_INTERVAL);
 
+// Schedule old log cleanup every 24 hours
+const LOG_CLEANUP_INTERVAL = 24 * 60 * 60 * 1000;
+setInterval(() => {
+  attendanceService.cleanupOldLogs().catch(err =>
+    console.error('[CLEANUP] Failed:', err.message)
+  );
+}, LOG_CLEANUP_INTERVAL);
+
+// Run old log cleanup once on startup
+attendanceService.cleanupOldLogs().catch(() => {});
+
 server.listen(PORT, () => {
   console.log(`
 🚀 LibraryTrack Backend is running!
