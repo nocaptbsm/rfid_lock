@@ -2,66 +2,122 @@ const supabase = require('../config/supabase');
 
 const attendanceService = {
   /**
-   * Main logic for processing a new scan
+   * Authorize a UID — check if the card is registered and active.
+   * Returns { authorized, status, student } 
+   *   status: 'AUTHORIZED' | 'SUSPENDED' | 'UNKNOWN'
    */
-  processScan: async (uid) => {
-    // 1. Fetch student — auto-register if unknown
-    let { data: student, error: studentError } = await supabase
+  authorizeUID: async (uid) => {
+    const { data: student, error } = await supabase
       .from('students')
       .select('*')
-      .eq('uid', uid)
+      .eq('uid', uid.toUpperCase())
       .single();
 
-    if (studentError || !student) {
-      // Auto-register: create a placeholder student for this new card
-      const { data: newStudent, error: insertError } = await supabase
-        .from('students')
-        .insert({
-          uid: uid,
-          name: `Unknown (${uid})`,
-          roll_no: uid               // use UID as roll_no until renamed
-        })
-        .select()
-        .single();
-
-      if (insertError) {
-        throw new Error(`Failed to register new card: ${insertError.message}`);
-      }
-      student = newStudent;
+    if (error || !student) {
+      return { authorized: false, status: 'UNKNOWN', student: null };
     }
 
-    // 2. Check for an active session
-    const { data: activeSession, error: sessionError } = await supabase
+    // Check the status column (defaults to 'AUTHORIZED' for existing rows)
+    const cardStatus = student.status || 'AUTHORIZED';
+    if (cardStatus === 'SUSPENDED') {
+      return { authorized: false, status: 'SUSPENDED', student };
+    }
+
+    return { authorized: true, status: 'AUTHORIZED', student };
+  },
+
+  /**
+   * Check nonce uniqueness to prevent replay attacks.
+   * Returns true if the nonce is fresh (not seen before).
+   */
+  checkNonce: async (nonce) => {
+    if (!nonce) return false;
+
+    const { data: existing } = await supabase
+      .from('used_nonces')
+      .select('nonce')
+      .eq('nonce', nonce)
+      .maybeSingle();
+
+    if (existing) return false; // Replay!
+
+    // Store the nonce
+    await supabase.from('used_nonces').insert({ nonce });
+    return true;
+  },
+
+  /**
+   * Main logic for processing a new scan.
+   * Now includes authorization checks.
+   */
+  processScan: async (uid, deviceId) => {
+    const normalizedUid = uid.toUpperCase();
+
+    // 1. Authorize the card
+    const { authorized, status, student } = await attendanceService.authorizeUID(normalizedUid);
+
+    // 2. Log ALL scan attempts (including unauthorized)
+    const timestamp = new Date().toISOString();
+
+    if (!authorized) {
+      // Log the denied scan for audit trail
+      try {
+        await supabase.from('scans').insert({
+          student_uid: student?.uid || normalizedUid,
+          type: 'DENIED',
+          timestamp,
+          device_id: deviceId || null,
+          authorized: false
+        });
+      } catch (logError) {
+        // If the UID doesn't exist in students table, we can't FK-reference it
+        // Log to a separate security log instead
+        console.warn(`[SECURITY] Unauthorized scan attempt: UID=${normalizedUid}, status=${status}, device=${deviceId}`);
+      }
+
+      return {
+        authorized: false,
+        error: status === 'SUSPENDED' ? 'CARD_SUSPENDED' : 'UNKNOWN_CARD',
+        uid: normalizedUid,
+        student_name: student?.name || null,
+        timestamp
+      };
+    }
+
+    // 3. Check for an active session (authorized cards only)
+    const { data: activeSession } = await supabase
       .from('sessions')
       .select('*')
-      .eq('student_uid', uid)
+      .eq('student_uid', normalizedUid)
       .is('exit_time', null)
       .order('entry_time', { ascending: false })
       .maybeSingle();
 
-    const timestamp = new Date().toISOString();
-
     if (activeSession) {
-      // 3a. EXIT Logic: Close the active session
+      // EXIT Logic: Close the active session
       const entryTime = new Date(activeSession.entry_time);
       const exitTime = new Date(timestamp);
       const durationMinutes = Math.round((exitTime - entryTime) / (1000 * 60));
 
-      const { data: updatedSession, error: updateError } = await supabase
+      await supabase
         .from('sessions')
         .update({ 
           exit_time: timestamp, 
           duration_minutes: durationMinutes,
           status: 'COMPLETED'
         })
-        .eq('id', activeSession.id)
-        .select()
-        .single();
+        .eq('id', activeSession.id);
 
-      // Log the scan event
-      await supabase.from('scans').insert({ student_uid: uid, type: 'EXIT', timestamp });
+      await supabase.from('scans').insert({
+        student_uid: normalizedUid,
+        type: 'EXIT',
+        timestamp,
+        device_id: deviceId || null,
+        authorized: true
+      });
 
       return {
+        authorized: true,
         event: 'EXIT',
         student_name: student.name,
         roll: student.roll_no,
@@ -69,25 +125,25 @@ const attendanceService = {
         duration: durationMinutes
       };
     } else {
-      // 3b. ENTRY Logic:
-      // First, check if there are any stale sessions (e.g. forgot to scan out yesterday)
-      // For simplicity, we just create a new one here. 
-      // A more robust system would scan for null exits > 12h and mark them as STALE.
-
-      const { data: newSession, error: insertError } = await supabase
+      // ENTRY Logic: Create a new session
+      await supabase
         .from('sessions')
         .insert({ 
-          student_uid: uid, 
+          student_uid: normalizedUid, 
           entry_time: timestamp,
           status: 'ACTIVE'
-        })
-        .select()
-        .single();
+        });
 
-      // Log the scan event
-      await supabase.from('scans').insert({ student_uid: uid, type: 'ENTRY', timestamp });
+      await supabase.from('scans').insert({
+        student_uid: normalizedUid,
+        type: 'ENTRY',
+        timestamp,
+        device_id: deviceId || null,
+        authorized: true
+      });
 
       return {
+        authorized: true,
         event: 'ENTRY',
         student_name: student.name,
         roll: student.roll_no,
@@ -95,6 +151,124 @@ const attendanceService = {
       };
     }
   },
+
+  // ─── Card Management ───────────────────────────────────────────
+
+  /**
+   * Register a new RFID card (admin action)
+   */
+  registerCard: async (uid, name, rollNo) => {
+    const normalizedUid = uid.toUpperCase();
+    
+    const { data: existing } = await supabase
+      .from('students')
+      .select('uid')
+      .eq('uid', normalizedUid)
+      .maybeSingle();
+
+    if (existing) {
+      throw new Error('Card already registered');
+    }
+
+    const { data, error } = await supabase
+      .from('students')
+      .insert({
+        uid: normalizedUid,
+        name: name.trim(),
+        roll_no: rollNo.trim(),
+        status: 'AUTHORIZED'
+      })
+      .select()
+      .single();
+
+    if (error) throw new Error(`Registration failed: ${error.message}`);
+    return data;
+  },
+
+  /**
+   * Suspend a card (deny access but keep records)
+   */
+  suspendCard: async (uid) => {
+    const { data, error } = await supabase
+      .from('students')
+      .update({ status: 'SUSPENDED' })
+      .eq('uid', uid.toUpperCase())
+      .select()
+      .single();
+
+    if (error) throw new Error(`Suspend failed: ${error.message}`);
+    return data;
+  },
+
+  /**
+   * Reactivate a suspended card
+   */
+  activateCard: async (uid) => {
+    const { data, error } = await supabase
+      .from('students')
+      .update({ status: 'AUTHORIZED' })
+      .eq('uid', uid.toUpperCase())
+      .select()
+      .single();
+
+    if (error) throw new Error(`Activate failed: ${error.message}`);
+    return data;
+  },
+
+  /**
+   * Get all cards with their status (for admin card management UI)
+   */
+  getAllCards: async () => {
+    const { data, error } = await supabase
+      .from('students')
+      .select('uid, name, roll_no, status, created_at')
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+    return data;
+  },
+
+  /**
+   * Get authorized UID list (for ESP32 allowlist sync)
+   */
+  getAuthorizedUIDs: async () => {
+    const { data, error } = await supabase
+      .from('students')
+      .select('uid')
+      .eq('status', 'AUTHORIZED');
+
+    if (error) throw error;
+    return data.map(s => s.uid);
+  },
+
+  /**
+   * Get unauthorized / denied scan log (security audit)
+   */
+  getSecurityLog: async (limit = 100) => {
+    const { data, error } = await supabase
+      .from('scans')
+      .select(`
+        id,
+        student_uid,
+        type,
+        timestamp,
+        device_id,
+        authorized,
+        students (
+          name,
+          roll_no,
+          status
+        )
+      `)
+      .eq('authorized', false)
+      .order('timestamp', { ascending: false })
+      .limit(limit);
+
+    if (error) throw error;
+    return data;
+  },
+
+  // ─── Existing service methods (unchanged) ──────────────────────
 
   getActiveStudents: async () => {
     const { data, error } = await supabase
@@ -121,6 +295,8 @@ const attendanceService = {
         id,
         type,
         timestamp,
+        device_id,
+        authorized,
         students (
           uid,
           name,
@@ -271,6 +447,21 @@ const attendanceService = {
       }));
 
     return leaderboard;
+  },
+
+  /**
+   * Cleanup stale nonces older than 10 minutes
+   */
+  cleanupNonces: async () => {
+    const cutoff = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+    const { error } = await supabase
+      .from('used_nonces')
+      .delete()
+      .lt('used_at', cutoff);
+
+    if (error) {
+      console.error('[NONCE] Cleanup error:', error.message);
+    }
   }
 };
 
