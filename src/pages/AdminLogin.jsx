@@ -1,11 +1,9 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
+import { adminLogin } from '@/api';
 import { ShieldCheck, ArrowRight, AlertCircle, Loader2, ArrowLeft, KeyRound } from 'lucide-react';
 import { motion } from 'framer-motion';
-
-// Hard-coded admin credentials (in production these come from a secure backend)
-const ADMIN_CREDENTIALS = { username: 'admin', password: 'admin123' };
 
 const AdminLogin = () => {
   const [username, setUsername] = useState('');
@@ -15,25 +13,34 @@ const AdminLogin = () => {
   const { login }               = useAuth();
   const navigate                = useNavigate();
 
-  const handleLogin = (e) => {
+  const handleLogin = async (e) => {
     e.preventDefault();
     if (!username || !password) return setError('Please fill in both fields');
 
     setLoading(true);
     setError('');
 
-    setTimeout(() => {
-      setLoading(false);
-      if (
-        username.toLowerCase() === ADMIN_CREDENTIALS.username &&
-        password            === ADMIN_CREDENTIALS.password
-      ) {
-        login({ roll: 'ADMIN', name: 'Administrator', role: 'admin' });
-        navigate('/admin');
-      } else {
+    try {
+      const data = await adminLogin(username, password);
+      login({ 
+        roll: 'ADMIN', 
+        name: 'Administrator', 
+        role: data.role, 
+        token: data.token 
+      });
+      navigate('/admin');
+    } catch (err) {
+      const msg = err.response?.data?.error;
+      if (msg === 'INVALID_CREDENTIALS') {
         setError('Invalid username or password');
+      } else if (msg === 'RATE_LIMITED') {
+        setError('Too many login attempts. Please try again later.');
+      } else {
+        setError('Login failed. Please check your connection.');
       }
-    }, 900);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -74,7 +81,7 @@ const AdminLogin = () => {
               <input
                 id="admin-username"
                 type="text"
-                placeholder="admin"
+                placeholder="Enter username"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 className="w-full px-4 py-3 bg-secondary/50 border border-border rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all"
@@ -119,10 +126,6 @@ const AdminLogin = () => {
               )}
             </button>
           </form>
-
-          <p className="text-xs text-center text-muted-foreground">
-            Default: admin / admin123
-          </p>
         </div>
       </motion.div>
     </div>

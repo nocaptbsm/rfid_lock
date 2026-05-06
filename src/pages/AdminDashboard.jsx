@@ -3,24 +3,24 @@ import {
   Users, Clock, Activity, Search, Tag, Pencil,
   Check, X, LogIn, LogOut, ChevronDown, ChevronUp,
   Download, RefreshCw, Loader2, AlertCircle, Wifi,
-  Trash2
+  Trash2, Shield, ShieldAlert, ShieldCheck, ShieldX,
+  CreditCard, Plus, Ban, CheckCircle2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRfid } from '@/context/RfidContext';
-import { deleteStudentLogs, updateStudentName } from '@/api';
+import api, { deleteStudentLogs, updateStudentName, fetchCards, suspendCard, activateCard, registerCard, fetchSecurityLog } from '@/api';
 import ConfirmDeleteModal from '@/components/modals/ConfirmDeleteModal';
 import { useLeaderboard } from '@/hooks/useLeaderboard';
 import LeaderboardPanel from '@/components/panels/LeaderboardPanel';
 
-const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api';
-
 /* ─── helpers ───────────────────────────────────────────────── */
 const cn = (...c) => c.filter(Boolean).join(' ');
 
-const badge = (type) =>
-  type === 'ENTRY'
-    ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30'
-    : 'bg-rose-500/15 text-rose-600 dark:text-rose-400 border border-rose-500/30';
+const badge = (type) => {
+  if (type === 'ENTRY') return 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30';
+  if (type === 'DENIED') return 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30';
+  return 'bg-rose-500/15 text-rose-600 dark:text-rose-400 border border-rose-500/30';
+};
 
 const fmtTime = (iso) => {
   if (!iso) return '—';
@@ -40,24 +40,16 @@ const useLiveData = () => {
   const fetchAll = useCallback(async () => {
     try {
       const [logsRes, liveRes] = await Promise.all([
-        fetch(`${BASE_URL}/admin/logs`),
-        fetch(`${BASE_URL}/admin/live`),
+        api.get('/admin/logs'),
+        api.get('/admin/live'),
       ]);
 
-      if (!logsRes.ok) throw new Error(`Logs: ${logsRes.status}`);
-      if (!liveRes.ok) throw new Error(`Live: ${liveRes.status}`);
-
-      const [logsData, liveData] = await Promise.all([
-        logsRes.json(),
-        liveRes.json(),
-      ]);
-
-      setLogs(logsData);
-      setLive(liveData);
+      setLogs(logsRes.data);
+      setLive(liveRes.data);
       setError('');
       setLastSync(new Date());
     } catch (err) {
-      setError(err.message);
+      setError(err.response?.data?.error || err.message);
     } finally {
       setLoading(false);
     }
@@ -354,12 +346,227 @@ const RfidLogTable = ({ logs, loading, onDeleteStudent, onRefresh }) => {
   );
 };
 
+/* ─── Card Management Panel ─────────────────────────────────── */
+const CardManagementPanel = () => {
+  const [cards, setCards] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
+  const [showRegister, setShowRegister] = useState(false);
+  const [newCard, setNewCard] = useState({ uid: '', name: '', roll_no: '' });
+  const [actionLoading, setActionLoading] = useState(null);
+  const [error, setError] = useState('');
+
+  const loadCards = useCallback(async () => {
+    try {
+      const data = await fetchCards();
+      setCards(data);
+      setError('');
+    } catch (err) {
+      setError(err.response?.data?.error || 'Failed to load cards');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { loadCards(); }, [loadCards]);
+
+  const handleToggleStatus = async (uid, currentStatus) => {
+    setActionLoading(uid);
+    try {
+      if (currentStatus === 'AUTHORIZED') {
+        await suspendCard(uid);
+      } else {
+        await activateCard(uid);
+      }
+      await loadCards();
+    } catch (err) {
+      setError(err.response?.data?.error || 'Action failed');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleRegister = async (e) => {
+    e.preventDefault();
+    if (!newCard.uid || !newCard.name || !newCard.roll_no) return;
+    setActionLoading('register');
+    try {
+      await registerCard(newCard.uid.toUpperCase(), newCard.name, newCard.roll_no);
+      setNewCard({ uid: '', name: '', roll_no: '' });
+      setShowRegister(false);
+      await loadCards();
+    } catch (err) {
+      setError(err.response?.data?.error || 'Registration failed');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const filtered = cards.filter(c => {
+    if (!search) return true;
+    const q = search.toLowerCase();
+    return c.uid.toLowerCase().includes(q) || c.name.toLowerCase().includes(q) || (c.roll_no || '').toLowerCase().includes(q);
+  });
+
+  return (
+    <div className="glass-card rounded-2xl overflow-hidden">
+      <div className="px-6 py-4 border-b border-border flex flex-col sm:flex-row sm:items-center gap-3">
+        <div className="flex items-center gap-2">
+          <CreditCard size={18} className="text-primary" />
+          <h2 className="text-base font-semibold">RFID Card Management</h2>
+          <span className="text-xs text-muted-foreground ml-1">{cards.length} cards</span>
+        </div>
+        <div className="flex items-center gap-2 ml-auto">
+          <div className="relative">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+            <input
+              value={search} onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search cards…"
+              className="pl-8 pr-3 py-2 text-sm bg-secondary/50 border border-border rounded-lg outline-none focus:ring-2 focus:ring-primary/20 w-44"
+            />
+          </div>
+          <button onClick={() => setShowRegister(!showRegister)}
+            className={cn('px-3 py-2 text-xs font-medium rounded-lg flex items-center gap-1.5 transition-all',
+              showRegister ? 'bg-primary text-primary-foreground' : 'bg-secondary/50 text-muted-foreground hover:bg-secondary')}>
+            <Plus size={14} /> Register Card
+          </button>
+        </div>
+      </div>
+
+      {error && (
+        <div className="px-6 py-2">
+          <div className="flex items-center gap-2 text-destructive text-xs bg-destructive/10 p-2 rounded-lg">
+            <AlertCircle size={13} /> {error}
+            <button onClick={() => setError('')} className="ml-auto"><X size={12} /></button>
+          </div>
+        </div>
+      )}
+
+      <AnimatePresence>
+        {showRegister && (
+          <motion.form onSubmit={handleRegister}
+            initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }}
+            className="overflow-hidden border-b border-border">
+            <div className="px-6 py-4 flex flex-wrap items-end gap-3 bg-secondary/10">
+              <div>
+                <label className="text-xs font-medium text-muted-foreground block mb-1">Card UID</label>
+                <input value={newCard.uid} onChange={(e) => setNewCard(p => ({...p, uid: e.target.value}))}
+                  placeholder="e.g. A3B2C1D4" className="px-3 py-2 text-sm bg-secondary/50 border border-border rounded-lg w-32 outline-none focus:ring-2 focus:ring-primary/20" />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-muted-foreground block mb-1">Student Name</label>
+                <input value={newCard.name} onChange={(e) => setNewCard(p => ({...p, name: e.target.value}))}
+                  placeholder="Full name" className="px-3 py-2 text-sm bg-secondary/50 border border-border rounded-lg w-40 outline-none focus:ring-2 focus:ring-primary/20" />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-muted-foreground block mb-1">Roll Number</label>
+                <input value={newCard.roll_no} onChange={(e) => setNewCard(p => ({...p, roll_no: e.target.value}))}
+                  placeholder="Roll No." className="px-3 py-2 text-sm bg-secondary/50 border border-border rounded-lg w-32 outline-none focus:ring-2 focus:ring-primary/20" />
+              </div>
+              <button type="submit" disabled={actionLoading === 'register'}
+                className="px-4 py-2 bg-primary text-primary-foreground text-sm font-medium rounded-lg flex items-center gap-1.5 disabled:opacity-50">
+                {actionLoading === 'register' ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />} Register
+              </button>
+            </div>
+          </motion.form>
+        )}
+      </AnimatePresence>
+
+      {loading ? (
+        <div className="p-6 space-y-3">{[1,2,3].map(i => <div key={i} className="h-10 bg-secondary/40 rounded-lg animate-pulse" />)}</div>
+      ) : (
+        <div className="divide-y divide-border/50">
+          {filtered.length === 0 && <p className="text-center py-10 text-sm text-muted-foreground">No cards found</p>}
+          {filtered.map((card) => (
+            <div key={card.uid} className="flex items-center gap-4 px-6 py-3 hover:bg-secondary/20 transition-colors group">
+              <div className={cn('w-8 h-8 rounded-full flex items-center justify-center shrink-0',
+                card.status === 'AUTHORIZED' ? 'bg-emerald-500/10' : 'bg-rose-500/10')}>
+                {card.status === 'AUTHORIZED' ? <ShieldCheck size={14} className="text-emerald-500" /> : <ShieldX size={14} className="text-rose-500" />}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium truncate">{card.name}</p>
+                <p className="text-xs text-muted-foreground">{card.roll_no} • <code className="font-mono">{card.uid}</code></p>
+              </div>
+              <span className={cn('text-xs font-semibold px-2 py-0.5 rounded-full',
+                card.status === 'AUTHORIZED' 
+                  ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400' 
+                  : 'bg-rose-500/15 text-rose-600 dark:text-rose-400')}>
+                {card.status}
+              </span>
+              <button onClick={() => handleToggleStatus(card.uid, card.status)} disabled={actionLoading === card.uid}
+                className={cn('px-3 py-1.5 text-xs font-medium rounded-lg transition-all flex items-center gap-1.5 opacity-0 group-hover:opacity-100',
+                  card.status === 'AUTHORIZED' 
+                    ? 'bg-rose-500/10 text-rose-500 hover:bg-rose-500/20' 
+                    : 'bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500/20')}>
+                {actionLoading === card.uid ? <Loader2 size={12} className="animate-spin" /> 
+                  : card.status === 'AUTHORIZED' ? <><Ban size={12} /> Suspend</> : <><CheckCircle2 size={12} /> Activate</>}
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
+/* ─── Security Alert Panel ──────────────────────────────────── */
+const SecurityAlertPanel = () => {
+  const [alerts, setAlerts] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchSecurityLog()
+      .then(data => { setAlerts(data); setLoading(false); })
+      .catch(() => setLoading(false));
+  }, []);
+
+  return (
+    <div className="glass-card rounded-2xl overflow-hidden">
+      <div className="px-6 py-4 border-b border-border flex items-center gap-2">
+        <ShieldAlert size={18} className="text-amber-500" />
+        <h2 className="text-base font-semibold">Unauthorized Scan Alerts</h2>
+        <span className="ml-auto text-xs text-muted-foreground">{alerts.length} events</span>
+      </div>
+      {loading ? (
+        <div className="p-6 space-y-3">{[1,2,3].map(i => <div key={i} className="h-10 bg-secondary/40 rounded-lg animate-pulse" />)}</div>
+      ) : alerts.length === 0 ? (
+        <div className="text-center py-10">
+          <ShieldCheck size={32} className="mx-auto mb-2 text-emerald-500/50" />
+          <p className="text-sm text-muted-foreground">No unauthorized scan attempts</p>
+        </div>
+      ) : (
+        <div className="divide-y divide-border/50 max-h-96 overflow-y-auto">
+          {alerts.map((a) => (
+            <div key={a.id} className="flex items-center gap-4 px-6 py-3">
+              <div className="w-8 h-8 rounded-full bg-amber-500/10 flex items-center justify-center shrink-0">
+                <ShieldX size={14} className="text-amber-500" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium">
+                  {a.students?.name || 'Unknown Card'}
+                  {a.students?.status === 'SUSPENDED' && <span className="text-xs text-rose-500 ml-2">(Suspended)</span>}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  UID: <code className="font-mono">{a.student_uid}</code>
+                  {a.device_id && <> • Device: {a.device_id}</>}
+                </p>
+              </div>
+              <span className="text-xs text-muted-foreground tabular-nums">{fmtTime(a.timestamp)}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
 /* ─── Admin Dashboard ───────────────────────────────────────── */
 const AdminDashboard = () => {
   const { logs, live, loading, error, lastSync, refresh } = useLiveData();
   const { leaderboard, loading: leaderLoading } = useLeaderboard();
   const [targetStudent, setTargetStudent] = useState(null);
   const [deleting, setDeleting] = useState(false);
+  const [activeTab, setActiveTab] = useState('dashboard');
 
   const confirmDelete = async () => {
     if (!targetStudent) return;
@@ -411,6 +618,11 @@ const AdminDashboard = () => {
   });
   const dailyAvg = totalDaysWithEntries > 0 ? Math.round(sumOfUniqueDailyEntries / totalDaysWithEntries) : 0;
 
+  const tabs = [
+    { id: 'dashboard', label: 'Dashboard', icon: Activity },
+    { id: 'security',  label: 'Security',  icon: Shield },
+  ];
+
   return (
     <motion.div variants={container} initial="hidden" animate="show" className="space-y-8">
 
@@ -438,28 +650,56 @@ const AdminDashboard = () => {
         </div>
       </motion.div>
 
-      {/* Stats */}
-      <motion.div variants={item} className="grid grid-cols-1 sm:grid-cols-3 gap-5">
-        <StatCard title="Currently Inside"  value={live.length}   icon={Users}    color="primary" loading={loading} />
-        <StatCard title="Total Entries Today" value={uniqueEntriesToday} icon={LogIn}    color="emerald" loading={loading} />
-        <StatCard title="Daily Avg Entries"   value={dailyAvg}   icon={Activity} color="amber"   loading={loading} />
+      {/* Tabs */}
+      <motion.div variants={item} className="flex items-center gap-1 bg-secondary/30 p-1 rounded-xl w-fit">
+        {tabs.map((tab) => (
+          <button key={tab.id} onClick={() => setActiveTab(tab.id)}
+            className={cn('px-4 py-2 text-sm font-medium rounded-lg flex items-center gap-2 transition-all',
+              activeTab === tab.id
+                ? 'bg-primary text-primary-foreground shadow-md shadow-primary/20'
+                : 'text-muted-foreground hover:text-foreground hover:bg-secondary/50')}>
+            <tab.icon size={15} /> {tab.label}
+          </button>
+        ))}
       </motion.div>
 
-      {/* Live sessions & Leaderboard */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <motion.div variants={item} className="lg:col-span-2">
-          <LiveSessionsPanel live={live} loading={loading} onDeleteStudent={setTargetStudent} onRefresh={refresh} />
-        </motion.div>
-        
-        <motion.div variants={item} className="h-[400px] lg:h-auto">
-          <LeaderboardPanel leaderboard={leaderboard} loading={leaderLoading} currentRoll={null} />
-        </motion.div>
-      </div>
+      {activeTab === 'dashboard' && (
+        <>
+          {/* Stats */}
+          <motion.div variants={item} className="grid grid-cols-1 sm:grid-cols-3 gap-5">
+            <StatCard title="Currently Inside"  value={live.length}   icon={Users}    color="primary" loading={loading} />
+            <StatCard title="Total Entries Today" value={uniqueEntriesToday} icon={LogIn}    color="emerald" loading={loading} />
+            <StatCard title="Daily Avg Entries"   value={dailyAvg}   icon={Activity} color="amber"   loading={loading} />
+          </motion.div>
 
-      {/* Full log */}
-      <motion.div variants={item}>
-        <RfidLogTable logs={logs} loading={loading} onDeleteStudent={setTargetStudent} onRefresh={refresh} />
-      </motion.div>
+          {/* Live sessions & Leaderboard */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <motion.div variants={item} className="lg:col-span-2">
+              <LiveSessionsPanel live={live} loading={loading} onDeleteStudent={setTargetStudent} onRefresh={refresh} />
+            </motion.div>
+            
+            <motion.div variants={item} className="h-[400px] lg:h-auto">
+              <LeaderboardPanel leaderboard={leaderboard} loading={leaderLoading} currentRoll={null} />
+            </motion.div>
+          </div>
+
+          {/* Full log */}
+          <motion.div variants={item}>
+            <RfidLogTable logs={logs} loading={loading} onDeleteStudent={setTargetStudent} onRefresh={refresh} />
+          </motion.div>
+        </>
+      )}
+
+      {activeTab === 'security' && (
+        <div className="space-y-8">
+          <motion.div variants={item}>
+            <CardManagementPanel />
+          </motion.div>
+          <motion.div variants={item}>
+            <SecurityAlertPanel />
+          </motion.div>
+        </div>
+      )}
 
       <ConfirmDeleteModal 
         student={targetStudent}

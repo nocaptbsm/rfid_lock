@@ -29,7 +29,7 @@ api.interceptors.response.use(
   }
 );
 
-// Student Endpoints
+// ─── Student Endpoints ───────────────────────────────────────────────
 export const fetchStudentStats = (roll) => 
   api.get(`/student/${encodeURIComponent(roll)}`).then(res => res.data);
 
@@ -44,5 +44,26 @@ export const updateStudentName = (uid, name) =>
 
 export const fetchLeaderboard = () =>
   api.get('/leaderboard').then(res => res.data);
+
+// ─── Admin Auth ──────────────────────────────────────────────────────
+export const adminLogin = (username, password) =>
+  api.post('/admin/login', { username, password }).then(res => res.data);
+
+// ─── Card Management ────────────────────────────────────────────────
+export const fetchCards = () =>
+  api.get('/admin/cards').then(res => res.data);
+
+export const registerCard = (uid, name, roll_no) =>
+  api.post('/admin/cards', { uid, name, roll_no }).then(res => res.data);
+
+export const suspendCard = (uid) =>
+  api.post(`/admin/cards/${encodeURIComponent(uid)}/suspend`).then(res => res.data);
+
+export const activateCard = (uid) =>
+  api.post(`/admin/cards/${encodeURIComponent(uid)}/activate`).then(res => res.data);
+
+// ─── Security Log ───────────────────────────────────────────────────
+export const fetchSecurityLog = () =>
+  api.get('/admin/security-log').then(res => res.data);
 
 export default api;
