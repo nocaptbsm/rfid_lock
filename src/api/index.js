@@ -53,8 +53,8 @@ export const adminLogin = (username, password) =>
 export const fetchCards = () =>
   api.get('/admin/cards').then(res => res.data);
 
-export const registerCard = (uid, name, roll_no) =>
-  api.post('/admin/cards', { uid, name, roll_no }).then(res => res.data);
+export const registerCard = (uid, name, roll_no, role = 'STUDENT') =>
+  api.post('/admin/cards', { uid, name, roll_no, role }).then(res => res.data);
 
 export const suspendCard = (uid) =>
   api.post(`/admin/cards/${encodeURIComponent(uid)}/suspend`).then(res => res.data);

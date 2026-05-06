@@ -352,7 +352,7 @@ const CardManagementPanel = () => {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [showRegister, setShowRegister] = useState(false);
-  const [newCard, setNewCard] = useState({ uid: '', name: '', roll_no: '' });
+  const [newCard, setNewCard] = useState({ uid: '', name: '', roll_no: '', role: 'STUDENT' });
   const [actionLoading, setActionLoading] = useState(null);
   const [error, setError] = useState('');
 
@@ -388,11 +388,12 @@ const CardManagementPanel = () => {
 
   const handleRegister = async (e) => {
     e.preventDefault();
-    if (!newCard.uid || !newCard.name || !newCard.roll_no) return;
+    if (!newCard.uid) return;
+    if (newCard.role === 'STUDENT' && (!newCard.name || !newCard.roll_no)) return;
     setActionLoading('register');
     try {
-      await registerCard(newCard.uid.toUpperCase(), newCard.name, newCard.roll_no);
-      setNewCard({ uid: '', name: '', roll_no: '' });
+      await registerCard(newCard.uid.toUpperCase(), newCard.name, newCard.roll_no, newCard.role);
+      setNewCard({ uid: '', name: '', roll_no: '', role: 'STUDENT' });
       setShowRegister(false);
       await loadCards();
     } catch (err) {
@@ -447,26 +448,48 @@ const CardManagementPanel = () => {
           <motion.form onSubmit={handleRegister}
             initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }}
             className="overflow-hidden border-b border-border">
-            <div className="px-6 py-4 flex flex-wrap items-end gap-3 bg-secondary/10">
-              <div>
-                <label className="text-xs font-medium text-muted-foreground block mb-1">Card UID</label>
-                <input value={newCard.uid} onChange={(e) => setNewCard(p => ({...p, uid: e.target.value}))}
-                  placeholder="e.g. A3B2C1D4" className="px-3 py-2 text-sm bg-secondary/50 border border-border rounded-lg w-32 outline-none focus:ring-2 focus:ring-primary/20" />
+            <div className="px-6 py-4 bg-secondary/10 space-y-4">
+              <div className="flex items-center gap-4 border-b border-border/50 pb-3">
+                <label className="text-sm font-medium">Card Role:</label>
+                <div className="flex gap-2">
+                  <button type="button" onClick={() => setNewCard(p => ({...p, role: 'STUDENT'}))}
+                    className={cn('px-3 py-1 text-xs font-semibold rounded-full transition-colors', 
+                      newCard.role === 'STUDENT' ? 'bg-primary text-primary-foreground' : 'bg-secondary text-muted-foreground')}>
+                    Student
+                  </button>
+                  <button type="button" onClick={() => setNewCard(p => ({...p, role: 'MASTER'}))}
+                    className={cn('px-3 py-1 text-xs font-semibold rounded-full transition-colors', 
+                      newCard.role === 'MASTER' ? 'bg-amber-500 text-white' : 'bg-secondary text-muted-foreground')}>
+                    Master Key
+                  </button>
+                </div>
               </div>
-              <div>
-                <label className="text-xs font-medium text-muted-foreground block mb-1">Student Name</label>
-                <input value={newCard.name} onChange={(e) => setNewCard(p => ({...p, name: e.target.value}))}
-                  placeholder="Full name" className="px-3 py-2 text-sm bg-secondary/50 border border-border rounded-lg w-40 outline-none focus:ring-2 focus:ring-primary/20" />
+              
+              <div className="flex flex-wrap items-end gap-3">
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground block mb-1">Card UID</label>
+                  <input value={newCard.uid} onChange={(e) => setNewCard(p => ({...p, uid: e.target.value}))}
+                    placeholder="e.g. A3B2C1D4" className="px-3 py-2 text-sm bg-secondary/50 border border-border rounded-lg w-32 outline-none focus:ring-2 focus:ring-primary/20" />
+                </div>
+                {newCard.role === 'STUDENT' && (
+                  <>
+                    <div>
+                      <label className="text-xs font-medium text-muted-foreground block mb-1">Student Name</label>
+                      <input value={newCard.name} onChange={(e) => setNewCard(p => ({...p, name: e.target.value}))}
+                        placeholder="Full name" className="px-3 py-2 text-sm bg-secondary/50 border border-border rounded-lg w-40 outline-none focus:ring-2 focus:ring-primary/20" />
+                    </div>
+                    <div>
+                      <label className="text-xs font-medium text-muted-foreground block mb-1">Roll Number</label>
+                      <input value={newCard.roll_no} onChange={(e) => setNewCard(p => ({...p, roll_no: e.target.value}))}
+                        placeholder="Roll No." className="px-3 py-2 text-sm bg-secondary/50 border border-border rounded-lg w-32 outline-none focus:ring-2 focus:ring-primary/20" />
+                    </div>
+                  </>
+                )}
+                <button type="submit" disabled={actionLoading === 'register'}
+                  className="px-4 py-2 bg-primary text-primary-foreground text-sm font-medium rounded-lg flex items-center gap-1.5 disabled:opacity-50">
+                  {actionLoading === 'register' ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />} Register
+                </button>
               </div>
-              <div>
-                <label className="text-xs font-medium text-muted-foreground block mb-1">Roll Number</label>
-                <input value={newCard.roll_no} onChange={(e) => setNewCard(p => ({...p, roll_no: e.target.value}))}
-                  placeholder="Roll No." className="px-3 py-2 text-sm bg-secondary/50 border border-border rounded-lg w-32 outline-none focus:ring-2 focus:ring-primary/20" />
-              </div>
-              <button type="submit" disabled={actionLoading === 'register'}
-                className="px-4 py-2 bg-primary text-primary-foreground text-sm font-medium rounded-lg flex items-center gap-1.5 disabled:opacity-50">
-                {actionLoading === 'register' ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />} Register
-              </button>
             </div>
           </motion.form>
         )}
@@ -484,7 +507,12 @@ const CardManagementPanel = () => {
                 {card.status === 'AUTHORIZED' ? <ShieldCheck size={14} className="text-emerald-500" /> : <ShieldX size={14} className="text-rose-500" />}
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium truncate">{card.name}</p>
+                <div className="flex items-center gap-2">
+                  <p className="text-sm font-medium truncate">{card.name}</p>
+                  {card.role === 'MASTER' && (
+                    <span className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-600 dark:text-amber-400">Master</span>
+                  )}
+                </div>
                 <p className="text-xs text-muted-foreground">{card.roll_no} • <code className="font-mono">{card.uid}</code></p>
               </div>
               <span className={cn('text-xs font-semibold px-2 py-0.5 rounded-full',

@@ -42,6 +42,13 @@ const StudentLogin = () => {
 
     try {
       const result = await fetchStudentStats(roll.toUpperCase());
+      
+      if (result.student.role === 'MASTER') {
+        setError('Master keys cannot be used for student login.');
+        setLoading(false);
+        return;
+      }
+
       login({
         roll: result.student.roll_no,
         name: result.student.name || 'Student',
