@@ -65,7 +65,9 @@ const LeaderboardPanel = ({ leaderboard, loading, currentRoll, fullPage = false 
                   <p className={cn("text-sm font-medium", isCurrentUser && "text-primary")}>
                     {student.name} {isCurrentUser && "(You)"}
                   </p>
-                  <p className="text-xs text-muted-foreground uppercase tracking-wider">{student.roll}</p>
+                  {isAdmin && (
+                    <p className="text-xs text-muted-foreground uppercase tracking-wider">{student.roll}</p>
+                  )}
                 </div>
               </div>
               <div className="text-right">

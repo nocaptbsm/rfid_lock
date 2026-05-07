@@ -191,15 +191,24 @@ const RfidLogTable = ({ logs, loading, onDeleteStudent, onRefresh }) => {
   const [typeFilter, setType]    = useState('ALL');
   const [sortDir,    setSortDir] = useState('desc');
   const [page,       setPage]    = useState(1);
-  const pageSize = 20;
+  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const pageSize = 10;
 
   // Reset page to 1 when search or filters change
   useEffect(() => {
     setPage(1);
-  }, [search, typeFilter, sortDir]);
+  }, [search, typeFilter, sortDir, selectedDate]);
 
   const filtered = useMemo(() => {
     let rows = [...logs];
+    if (selectedDate) {
+      rows = rows.filter(r => {
+        const rDate = new Date(r.timestamp);
+        // Adjust for local timezone of the selected date
+        const localDateStr = new Date(rDate.getTime() - rDate.getTimezoneOffset() * 60000).toISOString().split('T')[0];
+        return localDateStr === selectedDate;
+      });
+    }
     if (typeFilter !== 'ALL') rows = rows.filter(r => r.type === typeFilter);
     if (search) {
       const q = search.toLowerCase();
@@ -215,7 +224,7 @@ const RfidLogTable = ({ logs, loading, onDeleteStudent, onRefresh }) => {
       : new Date(a.timestamp) - new Date(b.timestamp)
     );
     return rows;
-  }, [logs, search, typeFilter, sortDir, resolveName]);
+  }, [logs, search, typeFilter, sortDir, selectedDate, resolveName]);
 
   const totalPages = Math.ceil(filtered.length / pageSize) || 1;
   const paginated = filtered.slice((page - 1) * pageSize, page * pageSize);
@@ -235,6 +244,14 @@ const RfidLogTable = ({ logs, loading, onDeleteStudent, onRefresh }) => {
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search RFID, name, time…"
               className="pl-8 pr-3 py-2 text-sm bg-secondary/50 border border-border rounded-lg outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary w-48"
+            />
+          </div>
+          <div className="relative">
+            <input
+              type="date"
+              value={selectedDate}
+              onChange={(e) => setSelectedDate(e.target.value)}
+              className="px-3 py-2 text-sm bg-secondary/50 border border-border rounded-lg outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
             />
           </div>
           {['ALL','ENTRY','EXIT'].map(f => (
@@ -280,20 +297,9 @@ const RfidLogTable = ({ logs, loading, onDeleteStudent, onRefresh }) => {
                 {paginated.map((row, idx) => {
                   const uid  = row.students?.uid  || '—';
                   const name = row.students?.name || uid;
-                  const rowDate = new Date(row.timestamp).toLocaleDateString(undefined, { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' });
-                  const prevDate = idx > 0 ? new Date(paginated[idx-1].timestamp).toLocaleDateString(undefined, { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' }) : null;
-                  const showDateHeader = rowDate !== prevDate;
                   
                   return (
-                    <React.Fragment key={row.id}>
-                      {showDateHeader && (
-                        <tr>
-                          <td colSpan={5} className="bg-secondary/40 px-6 py-2 text-xs font-semibold text-muted-foreground border-y border-border">
-                            {rowDate}
-                          </td>
-                        </tr>
-                      )}
-                      <motion.tr layout
+                      <motion.tr key={row.id} layout
                         initial={{ opacity: 0, x: -6 }} animate={{ opacity: 1, x: 0 }}
                         transition={{ delay: Math.min(idx * 0.015, 0.3) }}
                         className="border-b border-border/50 hover:bg-secondary/20 transition-colors"
@@ -318,9 +324,10 @@ const RfidLogTable = ({ logs, loading, onDeleteStudent, onRefresh }) => {
                           {row.type}
                         </span>
                       </td>
-                      <td className="px-6 py-3.5 text-muted-foreground text-xs tabular-nums">{fmtTime(row.timestamp)}</td>
+                      <td className="px-6 py-3.5 text-muted-foreground text-xs tabular-nums">
+                        {new Date(row.timestamp).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                      </td>
                     </motion.tr>
-                  </React.Fragment>
                   );
                 })}
               </AnimatePresence>
