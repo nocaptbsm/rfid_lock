@@ -192,22 +192,22 @@ const StudentDashboard = () => {
               <p className="text-sm text-muted-foreground">Engagement trend for {new Date().toLocaleString('default', { month: 'long' })}</p>
             </div>
           </div>
-          <div className="flex-1 flex flex-col justify-between pt-2">
+          <div className="flex flex-col gap-6 pt-2">
             {monthlyData?.length > 0 ? (
-              <div className="h-[160px] w-full mb-6">
+              <div className="h-[180px] w-full shrink-0">
                 <MonthlyLineChart data={monthlyData} />
               </div>
             ) : (
-              <div className="h-[160px] w-full mb-6 flex items-center justify-center border border-dashed border-border rounded-xl">
+              <div className="h-[180px] w-full shrink-0 flex items-center justify-center border border-dashed border-border rounded-xl">
                 <p className="text-sm text-muted-foreground italic">No data available yet</p>
               </div>
             )}
-            <div className="grid grid-cols-2 gap-4 mt-auto">
-              <div className="p-4 rounded-2xl bg-secondary/80 border border-border">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="p-4 rounded-2xl bg-secondary/80 border border-border flex flex-col justify-center">
                 <p className="text-xs text-muted-foreground uppercase font-semibold tracking-wider mb-1">Weekly Total</p>
                 <p className="text-2xl font-bold">{weeklyTotalMinutes !== undefined ? `${(weeklyTotalMinutes / 60).toFixed(1)}h` : '--'}</p>
               </div>
-              <div className="p-4 rounded-2xl bg-secondary/80 border border-border">
+              <div className="p-4 rounded-2xl bg-secondary/80 border border-border flex flex-col justify-center">
                 <p className="text-xs text-muted-foreground uppercase font-semibold tracking-wider mb-1">Consistency</p>
                 <p className="text-2xl font-bold">{weeklyData?.filter(d => d.hours > 0).length || 0}/7 days</p>
               </div>
