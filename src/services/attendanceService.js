@@ -151,6 +151,12 @@ const attendanceService = {
       throw new Error('Card already registered');
     }
 
+    // Generate password: first 4 letters of name + last 4 letters of uid
+    const cleanName = name.trim().replace(/\s+/g, '');
+    const namePart = (cleanName.length >= 4 ? cleanName.substring(0, 4) : cleanName).toLowerCase();
+    const uidPart = normalizedUid.slice(-4).toLowerCase();
+    const generatedPassword = role === 'MASTER' ? null : `${namePart}${uidPart}`;
+
     const { data, error } = await supabase
       .from('students')
       .insert({
@@ -158,13 +164,14 @@ const attendanceService = {
         name: role === 'MASTER' ? 'Master Key' : name.trim(),
         roll_no: role === 'MASTER' ? `MASTER_${normalizedUid}` : (rollNo ? rollNo.trim() : normalizedUid),
         status: 'AUTHORIZED',
-        role: role
+        role: role,
+        password: generatedPassword
       })
       .select()
       .single();
 
     if (error) throw new Error(`Registration failed: ${error.message}`);
-    return data;
+    return { ...data, generatedPassword };
   },
 
   /**
@@ -195,6 +202,21 @@ const attendanceService = {
 
     if (error) throw new Error(`Activate failed: ${error.message}`);
     return data;
+  },
+
+  /**
+   * Delete a card entirely
+   */
+  deleteCard: async (uid) => {
+    const normalizedUid = uid.toUpperCase();
+    await attendanceService.clearStudentLogs(normalizedUid);
+    const { error } = await supabase
+      .from('students')
+      .delete()
+      .eq('uid', normalizedUid);
+      
+    if (error) throw new Error(`Delete failed: ${error.message}`);
+    return { success: true };
   },
 
   /**
@@ -372,6 +394,21 @@ const attendanceService = {
       weeklySessions: allSessions, // For history charts
       isCurrentlyInside: todaySessions.some(s => !s.exit_time)
     };
+  },
+
+  verifyStudentLogin: async (uid, password) => {
+    const { data: student, error } = await supabase
+      .from('students')
+      .select('*')
+      .eq('uid', uid.toUpperCase())
+      .single();
+
+    if (error || !student) throw new Error('Student not found');
+    if (student.role === 'MASTER') throw new Error('Master keys cannot login');
+    if (student.password !== password) throw new Error('Invalid password');
+
+    // Return stats using existing method
+    return await attendanceService.getStudentStats(student.roll_no);
   },
 
   clearAllLogs: async () => {

@@ -243,6 +243,19 @@ router.post('/admin/cards/:uid/activate', requireAdmin, async (req, res) => {
 });
 
 /**
+ * DELETE /admin/cards/:uid — Delete a registered card
+ */
+router.delete('/admin/cards/:uid', requireAdmin, async (req, res) => {
+  try {
+    const result = await attendanceService.deleteCard(req.params.uid);
+    socketService.broadcast('CARD_DELETED', { uid: req.params.uid });
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
  * GET /admin/security-log — Unauthorized scan log
  */
 router.get('/admin/security-log', requireAdmin, async (req, res) => {
@@ -258,6 +271,20 @@ router.get('/admin/security-log', requireAdmin, async (req, res) => {
 // ═══════════════════════════════════════════════════════════════════════
 // PUBLIC ENDPOINTS
 // ═══════════════════════════════════════════════════════════════════════
+
+/**
+ * POST /student/login — Student login with UID and password
+ */
+router.post('/student/login', async (req, res) => {
+  try {
+    const { uid, password } = req.body;
+    if (!uid || !password) return res.status(400).json({ error: 'UID and password required' });
+    const stats = await attendanceService.verifyStudentLogin(uid, password);
+    res.json(stats);
+  } catch (error) {
+    res.status(401).json({ error: error.message });
+  }
+});
 
 /**
  * GET /student/:roll — Student stats (public, per-student)
