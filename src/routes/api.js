@@ -205,11 +205,11 @@ router.post('/admin/cards', requireAdmin, async (req, res) => {
     if (!uid) {
       return res.status(400).json({ error: 'uid is required' });
     }
-    if (!isMaster && (!name || !roll_no)) {
-      return res.status(400).json({ error: 'name and roll_no are required for students' });
+    if (!isMaster && !name) {
+      return res.status(400).json({ error: 'name is required for students' });
     }
     
-    const result = await attendanceService.registerCard(uid, name || '', roll_no || '', role || 'STUDENT');
+    const result = await attendanceService.registerCard(uid, name || '', roll_no || uid, role || 'STUDENT');
     res.status(201).json(result);
   } catch (error) {
     res.status(400).json({ error: error.message });

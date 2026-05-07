@@ -156,7 +156,7 @@ const attendanceService = {
       .insert({
         uid: normalizedUid,
         name: role === 'MASTER' ? 'Master Key' : name.trim(),
-        roll_no: role === 'MASTER' ? `MASTER_${normalizedUid}` : rollNo.trim(),
+        roll_no: role === 'MASTER' ? `MASTER_${normalizedUid}` : (rollNo ? rollNo.trim() : normalizedUid),
         status: 'AUTHORIZED',
         role: role
       })
