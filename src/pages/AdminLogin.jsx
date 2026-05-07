@@ -25,7 +25,7 @@ const AdminLogin = () => {
       login({ 
         roll: 'ADMIN', 
         name: 'Administrator', 
-        role: data.role, 
+        role: (data.role || 'admin').toLowerCase(),
         token: data.token 
       });
       navigate('/admin');

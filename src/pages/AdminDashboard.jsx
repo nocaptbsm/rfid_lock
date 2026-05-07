@@ -6,9 +6,9 @@ import {
   Trash2, Shield, ShieldAlert, ShieldCheck, ShieldX,
   CreditCard, Plus, Ban, CheckCircle2
 } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion'; // eslint-disable-line no-unused-vars
 import { useRfid } from '@/context/RfidContext';
-import api, { deleteStudentLogs, updateStudentName, fetchCards, suspendCard, activateCard, registerCard, fetchSecurityLog, deleteCard } from '@/api';
+import api, { deleteStudentLogs, updateStudentName, fetchCards, suspendCard, activateCard, registerCard, fetchSecurityLog, deleteCard, updateCardDetails, deleteTodayLogs } from '@/api';
 import ConfirmDeleteModal from '@/components/modals/ConfirmDeleteModal';
 import { useLeaderboard } from '@/hooks/useLeaderboard';
 import LeaderboardPanel from '@/components/panels/LeaderboardPanel';
@@ -65,28 +65,31 @@ const useLiveData = () => {
 };
 
 /* ─── Stat card ─────────────────────────────────────────────── */
-const StatCard = ({ title, value, icon: Icon, color = 'primary', loading }) => (
-  <div className="glass-card rounded-2xl p-6 flex items-center gap-4">
-    <div className={cn(
-      'w-12 h-12 rounded-xl flex items-center justify-center shrink-0',
-      color === 'primary' && 'bg-primary/10 text-primary',
-      color === 'emerald' && 'bg-emerald-500/10 text-emerald-500',
-      color === 'amber'   && 'bg-amber-500/10 text-amber-500',
-    )}>
-      <Icon size={22} />
+const StatCard = ({ title, value, icon, color = 'primary', loading }) => {
+  const IconComponent = icon;
+  return (
+    <div className="glass-card rounded-2xl p-6 flex items-center gap-4">
+      <div className={cn(
+        'w-12 h-12 rounded-xl flex items-center justify-center shrink-0',
+        color === 'primary' && 'bg-primary/10 text-primary',
+        color === 'emerald' && 'bg-emerald-500/10 text-emerald-500',
+        color === 'amber'   && 'bg-amber-500/10 text-amber-500',
+      )}>
+        <IconComponent size={22} />
+      </div>
+      <div>
+        <p className="text-sm text-muted-foreground">{title}</p>
+        {loading
+          ? <div className="h-7 w-16 bg-secondary/60 rounded-lg animate-pulse mt-1" />
+          : <p className="text-2xl font-bold mt-0.5">{value}</p>}
+      </div>
     </div>
-    <div>
-      <p className="text-sm text-muted-foreground">{title}</p>
-      {loading
-        ? <div className="h-7 w-16 bg-secondary/60 rounded-lg animate-pulse mt-1" />
-        : <p className="text-2xl font-bold mt-0.5">{value}</p>}
-    </div>
-  </div>
-);
+  );
+};
 
 /* ─── Inline rename cell ────────────────────────────────────── */
 const RenameCell = ({ rfid, fallback, onSave }) => {
-  const { aliases, setAlias, removeAlias } = useRfid();
+  const { aliases, setAlias } = useRfid();
   const [editing, setEditing] = useState(false);
   const [loading, setLoading] = useState(false);
   const [draft,   setDraft]   = useState('');
@@ -194,10 +197,7 @@ const RfidLogTable = ({ logs, loading, onDeleteStudent, onRefresh }) => {
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const pageSize = 10;
 
-  // Reset page to 1 when search or filters change
-  useEffect(() => {
-    setPage(1);
-  }, [search, typeFilter, sortDir, selectedDate]);
+  // Reset page to 1 when search or filters change (derived, avoids setState in effect)
 
   const filtered = useMemo(() => {
     let rows = [...logs];
@@ -227,7 +227,9 @@ const RfidLogTable = ({ logs, loading, onDeleteStudent, onRefresh }) => {
   }, [logs, search, typeFilter, sortDir, selectedDate, resolveName]);
 
   const totalPages = Math.ceil(filtered.length / pageSize) || 1;
-  const paginated = filtered.slice((page - 1) * pageSize, page * pageSize);
+  // Clamp page so it resets automatically when filters reduce totalPages
+  const effectivePage = Math.min(page, totalPages);
+  const paginated = filtered.slice((effectivePage - 1) * pageSize, effectivePage * pageSize);
 
   return (
     <div className="glass-card rounded-2xl overflow-hidden">
@@ -340,22 +342,22 @@ const RfidLogTable = ({ logs, loading, onDeleteStudent, onRefresh }) => {
       {filtered.length > pageSize && (
         <div className="px-6 py-4 border-t border-border flex items-center justify-between bg-secondary/20">
           <p className="text-xs text-muted-foreground">
-            Showing <span className="font-medium text-foreground">{((page - 1) * pageSize) + 1}</span> to{' '}
-            <span className="font-medium text-foreground">{Math.min(page * pageSize, filtered.length)}</span> of{' '}
+            Showing <span className="font-medium text-foreground">{((effectivePage - 1) * pageSize) + 1}</span> to{' '}
+            <span className="font-medium text-foreground">{Math.min(effectivePage * pageSize, filtered.length)}</span> of{' '}
             <span className="font-medium text-foreground">{filtered.length}</span> records
           </p>
           <div className="flex items-center gap-2">
             <button 
               onClick={() => setPage(p => Math.max(1, p - 1))}
-              disabled={page === 1}
+              disabled={effectivePage === 1}
               className="px-3 py-1.5 rounded-md text-xs font-medium bg-secondary text-foreground hover:bg-secondary/80 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               Previous
             </button>
-            <span className="text-xs font-medium px-2">Page {page} of {totalPages}</span>
+            <span className="text-xs font-medium px-2">Page {effectivePage} of {totalPages}</span>
             <button 
               onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-              disabled={page === totalPages}
+              disabled={effectivePage === totalPages}
               className="px-3 py-1.5 rounded-md text-xs font-medium bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               Next
@@ -376,6 +378,23 @@ const CardManagementPanel = () => {
   const [newCard, setNewCard] = useState({ uid: '', name: '', role: 'STUDENT' });
   const [actionLoading, setActionLoading] = useState(null);
   const [error, setError] = useState('');
+
+  const [editingCard, setEditingCard] = useState(null);
+  const [editForm, setEditForm] = useState({ uid: '', name: '' });
+
+  const handleUpdateCard = async (oldUid) => {
+    if (!editForm.uid || (!editForm.name && cards.find(c => c.uid === oldUid)?.role === 'STUDENT')) return;
+    setActionLoading(`edit-${oldUid}`);
+    try {
+      await updateCardDetails(oldUid, editForm);
+      setEditingCard(null);
+      await loadCards();
+    } catch (err) {
+      setError(err.response?.data?.error || 'Update failed');
+    } finally {
+      setActionLoading(null);
+    }
+  };
 
   const loadCards = useCallback(async () => {
     try {
@@ -445,6 +464,15 @@ const CardManagementPanel = () => {
     const q = search.toLowerCase();
     return c.uid.toLowerCase().includes(q) || c.name.toLowerCase().includes(q) || (c.roll_no || '').toLowerCase().includes(q);
   });
+
+  const CARDS_PER_PAGE = 8;
+  const [cardPage, setCardPage] = useState(1);
+
+  // Reset page on search change
+  useEffect(() => { setCardPage(1); }, [search]);
+
+  const totalCardPages = Math.ceil(filtered.length / CARDS_PER_PAGE) || 1;
+  const paginatedCards = filtered.slice((cardPage - 1) * CARDS_PER_PAGE, cardPage * CARDS_PER_PAGE);
 
   return (
     <div className="glass-card rounded-2xl overflow-hidden">
@@ -528,79 +556,189 @@ const CardManagementPanel = () => {
       {loading ? (
         <div className="p-6 space-y-3">{[1,2,3].map(i => <div key={i} className="h-10 bg-secondary/40 rounded-lg animate-pulse" />)}</div>
       ) : (
-        <div className="divide-y divide-border/50">
-          {filtered.length === 0 && <p className="text-center py-10 text-sm text-muted-foreground">No cards found</p>}
-          {filtered.map((card) => (
-            <div key={card.uid} className="flex items-center gap-4 px-6 py-3 hover:bg-secondary/20 transition-colors group">
-              <div className={cn('w-8 h-8 rounded-full flex items-center justify-center shrink-0',
-                card.status === 'AUTHORIZED' ? 'bg-emerald-500/10' : 'bg-rose-500/10')}>
-                {card.status === 'AUTHORIZED' ? <ShieldCheck size={14} className="text-emerald-500" /> : <ShieldX size={14} className="text-rose-500" />}
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
-                  <p className="text-sm font-medium truncate">{card.name}</p>
-                  {card.role === 'MASTER' && (
-                    <span className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-600 dark:text-amber-400">Master</span>
-                  )}
+        <>
+          <div className="divide-y divide-border/50">
+            {paginatedCards.length === 0 && <p className="text-center py-10 text-sm text-muted-foreground">No cards found</p>}
+            {paginatedCards.map((card) => {
+              const isEditing = editingCard === card.uid;
+              
+              return (
+              <div key={card.uid} className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 px-6 py-4 hover:bg-secondary/20 transition-colors group border-b border-border/50 last:border-0">
+                <div className="flex items-center gap-4 flex-1 min-w-0">
+                  <div className={cn('w-8 h-8 rounded-full flex items-center justify-center shrink-0',
+                    card.status === 'AUTHORIZED' ? 'bg-emerald-500/10' : 'bg-rose-500/10')}>
+                    {card.status === 'AUTHORIZED' ? <ShieldCheck size={14} className="text-emerald-500" /> : <ShieldX size={14} className="text-rose-500" />}
+                  </div>
+                  
+                  <div className="flex-1 min-w-0">
+                    {isEditing ? (
+                      <div className="flex flex-col sm:flex-row gap-2">
+                        <input 
+                          value={editForm.name} 
+                          onChange={(e) => setEditForm(p => ({...p, name: e.target.value}))} 
+                          placeholder="Name"
+                          className="px-2 py-1.5 text-sm bg-secondary/50 border border-border rounded-lg outline-none focus:ring-1 focus:ring-primary/50 w-full sm:w-32"
+                        />
+                        <input 
+                          value={editForm.uid} 
+                          onChange={(e) => setEditForm(p => ({...p, uid: e.target.value}))} 
+                          placeholder="UID"
+                          className="px-2 py-1.5 text-sm font-mono bg-secondary/50 border border-border rounded-lg outline-none focus:ring-1 focus:ring-primary/50 w-full sm:w-32 uppercase"
+                        />
+                      </div>
+                    ) : (
+                      <>
+                        <div className="flex items-center gap-2">
+                          <p className="text-sm font-medium truncate">{card.name}</p>
+                          {card.role === 'MASTER' && (
+                            <span className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-600 dark:text-amber-400">Master</span>
+                          )}
+                        </div>
+                        <p className="text-xs text-muted-foreground">{card.roll_no} • <code className="font-mono">{card.uid}</code></p>
+                      </>
+                    )}
+                  </div>
                 </div>
-                <p className="text-xs text-muted-foreground">{card.roll_no} • <code className="font-mono">{card.uid}</code></p>
-              </div>
-              <span className={cn('text-xs font-semibold px-2 py-0.5 rounded-full',
-                card.status === 'AUTHORIZED' 
-                  ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400' 
-                  : 'bg-rose-500/15 text-rose-600 dark:text-rose-400')}>
-                {card.status}
-              </span>
-              <div className="flex items-center gap-1">
-                <button onClick={() => handleToggleStatus(card.uid, card.status)} disabled={actionLoading === card.uid || actionLoading === `delete-${card.uid}`}
-                  className={cn('px-3 py-1.5 text-xs font-medium rounded-lg transition-all flex items-center gap-1.5 opacity-0 group-hover:opacity-100',
+
+                <div className="flex flex-wrap items-center gap-3 mt-1 sm:mt-0">
+                  <span className={cn('text-xs font-semibold px-2 py-1 rounded-full shrink-0',
                     card.status === 'AUTHORIZED' 
-                      ? 'bg-amber-500/10 text-amber-500 hover:bg-amber-500/20' 
-                      : 'bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500/20')}>
-                  {actionLoading === card.uid ? <Loader2 size={12} className="animate-spin" /> 
-                    : card.status === 'AUTHORIZED' ? <><Ban size={12} /> Suspend</> : <><CheckCircle2 size={12} /> Activate</>}
+                      ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400' 
+                      : 'bg-rose-500/15 text-rose-600 dark:text-rose-400')}>
+                    {card.status}
+                  </span>
+                  
+                  <div className="flex items-center gap-2">
+                    {isEditing ? (
+                      <>
+                        <button onClick={() => handleUpdateCard(card.uid)} disabled={actionLoading === `edit-${card.uid}`}
+                          className="p-1.5 rounded-lg text-emerald-500 bg-emerald-500/10 hover:bg-emerald-500/20 transition-colors">
+                          {actionLoading === `edit-${card.uid}` ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
+                        </button>
+                        <button onClick={() => setEditingCard(null)} disabled={actionLoading === `edit-${card.uid}`}
+                          className="p-1.5 rounded-lg text-rose-500 bg-rose-500/10 hover:bg-rose-500/20 transition-colors">
+                          <X size={14} />
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <button onClick={() => { setEditingCard(card.uid); setEditForm({ uid: card.uid, name: card.name }); }} disabled={actionLoading}
+                          className="p-1.5 rounded-lg text-primary bg-primary/10 hover:bg-primary/20 transition-colors" title="Edit Card">
+                          <Pencil size={14} />
+                        </button>
+                        <button onClick={() => handleToggleStatus(card.uid, card.status)} disabled={actionLoading === card.uid || actionLoading === `delete-${card.uid}`}
+                          className={cn('px-3 py-1.5 text-xs font-medium rounded-lg transition-all flex items-center gap-1.5',
+                            card.status === 'AUTHORIZED' 
+                              ? 'bg-amber-500/10 text-amber-500 hover:bg-amber-500/20' 
+                              : 'bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500/20')}>
+                          {actionLoading === card.uid ? <Loader2 size={12} className="animate-spin" /> 
+                            : card.status === 'AUTHORIZED' ? <><Ban size={12} /> Suspend</> : <><CheckCircle2 size={12} /> Activate</>}
+                        </button>
+                        <button onClick={() => handleDeleteCard(card.uid)} disabled={actionLoading === card.uid || actionLoading === `delete-${card.uid}`}
+                          className="p-1.5 rounded-lg transition-all flex items-center gap-1.5 bg-rose-500/10 text-rose-500 hover:bg-rose-500/20" title="Delete Card">
+                          {actionLoading === `delete-${card.uid}` ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </div>
+              </div>
+              );
+            })}
+          </div>
+
+          {/* Pagination */}
+          {filtered.length > CARDS_PER_PAGE && (
+            <div className="px-6 py-4 border-t border-border flex items-center justify-between bg-secondary/20">
+              <p className="text-xs text-muted-foreground">
+                Showing <span className="font-medium text-foreground">{((cardPage - 1) * CARDS_PER_PAGE) + 1}</span> to{' '}
+                <span className="font-medium text-foreground">{Math.min(cardPage * CARDS_PER_PAGE, filtered.length)}</span> of{' '}
+                <span className="font-medium text-foreground">{filtered.length}</span> cards
+              </p>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setCardPage(p => Math.max(1, p - 1))}
+                  disabled={cardPage === 1}
+                  className="px-3 py-1.5 rounded-md text-xs font-medium bg-secondary text-foreground hover:bg-secondary/80 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  Previous
                 </button>
-                <button onClick={() => handleDeleteCard(card.uid)} disabled={actionLoading === card.uid || actionLoading === `delete-${card.uid}`}
-                  className="p-1.5 rounded-lg transition-all flex items-center gap-1.5 opacity-0 group-hover:opacity-100 bg-rose-500/10 text-rose-500 hover:bg-rose-500/20">
-                  {actionLoading === `delete-${card.uid}` ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                <span className="text-xs font-medium px-2">Page {cardPage} of {totalCardPages}</span>
+                <button
+                  onClick={() => setCardPage(p => Math.min(totalCardPages, p + 1))}
+                  disabled={cardPage === totalCardPages}
+                  className="px-3 py-1.5 rounded-md text-xs font-medium bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  Next
                 </button>
               </div>
             </div>
-          ))}
-        </div>
+          )}
+        </>
       )}
     </div>
   );
 };
 
 /* ─── Security Alert Panel ──────────────────────────────────── */
-const SecurityAlertPanel = () => {
-  const [alerts, setAlerts] = useState([]);
-  const [loading, setLoading] = useState(true);
+const SecurityAlertPanel = ({ logs = [] }) => {
+  const [secAlerts, setSecAlerts] = useState([]);
+  const [loading, setLoading]     = useState(true);
+  const [fetchError, setFetchError] = useState('');
 
   useEffect(() => {
     fetchSecurityLog()
-      .then(data => { setAlerts(data); setLoading(false); })
-      .catch(() => setLoading(false));
+      .then(data => { setSecAlerts(Array.isArray(data) ? data : []); setLoading(false); })
+      .catch(err => {
+        setFetchError(err?.response?.data?.error || 'Failed to load security log');
+        setLoading(false);
+      });
   }, []);
+
+  // Merge: deduplicate by id — security log alerts + DENIED scans from main logs
+  const deniedFromLogs = logs
+    .filter(l => l.type === 'DENIED')
+    .map(l => ({
+      id: `denied-${l.id}`,
+      student_uid: l.students?.uid || l.uid || '—',
+      students: l.students,
+      device_id: l.device_id || null,
+      timestamp: l.timestamp,
+      _source: 'log',
+    }));
+
+  const secAlertIds = new Set(secAlerts.map(a => a.id));
+  const combined = [
+    ...secAlerts,
+    ...deniedFromLogs.filter(d => !secAlertIds.has(d.id)),
+  ].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
 
   return (
     <div className="glass-card rounded-2xl overflow-hidden">
       <div className="px-6 py-4 border-b border-border flex items-center gap-2">
         <ShieldAlert size={18} className="text-amber-500" />
         <h2 className="text-base font-semibold">Unauthorized Scan Alerts</h2>
-        <span className="ml-auto text-xs text-muted-foreground">{alerts.length} events</span>
+        <span className="ml-auto text-xs text-muted-foreground">{combined.length} events</span>
       </div>
+
+      {fetchError && (
+        <div className="px-6 py-2">
+          <div className="flex items-center gap-2 text-amber-600 text-xs bg-amber-500/10 p-2 rounded-lg">
+            <AlertCircle size={13} /> Security log: {fetchError} — showing DENIED scans from main log instead.
+          </div>
+        </div>
+      )}
+
       {loading ? (
         <div className="p-6 space-y-3">{[1,2,3].map(i => <div key={i} className="h-10 bg-secondary/40 rounded-lg animate-pulse" />)}</div>
-      ) : alerts.length === 0 ? (
+      ) : combined.length === 0 ? (
         <div className="text-center py-10">
           <ShieldCheck size={32} className="mx-auto mb-2 text-emerald-500/50" />
           <p className="text-sm text-muted-foreground">No unauthorized scan attempts</p>
         </div>
       ) : (
         <div className="divide-y divide-border/50 max-h-96 overflow-y-auto">
-          {alerts.map((a) => (
+          {combined.map((a) => (
             <div key={a.id} className="flex items-center gap-4 px-6 py-3">
               <div className="w-8 h-8 rounded-full bg-amber-500/10 flex items-center justify-center shrink-0">
                 <ShieldX size={14} className="text-amber-500" />
@@ -615,7 +753,7 @@ const SecurityAlertPanel = () => {
                   {a.device_id && <> • Device: {a.device_id}</>}
                 </p>
               </div>
-              <span className="text-xs text-muted-foreground tabular-nums">{fmtTime(a.timestamp)}</span>
+              <span className="text-xs text-muted-foreground tabular-nums shrink-0">{fmtTime(a.timestamp)}</span>
             </div>
           ))}
         </div>
@@ -643,6 +781,23 @@ const AdminDashboard = () => {
       console.error('Failed to delete student logs:', err);
     } finally {
       setDeleting(false);
+    }
+  };
+
+  const [clearingToday, setClearingToday] = useState(false);
+
+  const confirmDeleteToday = async () => {
+    if (!window.confirm("Are you sure you want to permanently delete ALL records from today? This action cannot be undone and will delete entry, exit, and session logs.")) return;
+    setClearingToday(true);
+    try {
+      await deleteTodayLogs();
+      refresh();
+      window.alert("Successfully deleted all of today's records.");
+    } catch (err) {
+      console.error('Failed to delete today logs:', err);
+      window.alert(err.response?.data?.error || "Failed to delete today's records.");
+    } finally {
+      setClearingToday(false);
     }
   };
 
@@ -701,12 +856,19 @@ const AdminDashboard = () => {
               : <span className="text-xs text-muted-foreground">connecting…</span>}
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 mt-4 md:mt-0">
           {error && (
             <span className="flex items-center gap-1.5 text-xs text-destructive bg-destructive/10 px-3 py-2 rounded-lg">
               <AlertCircle size={13} /> {error}
             </span>
           )}
+          
+          <button onClick={confirmDeleteToday} disabled={clearingToday}
+            className="px-4 py-2 bg-rose-500/10 text-rose-500 hover:bg-rose-500/20 disabled:opacity-50 rounded-lg text-sm font-medium flex items-center gap-2 transition-colors">
+            {clearingToday ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />} 
+            Clear Today
+          </button>
+          
           <button onClick={refresh}
             className="px-4 py-2 bg-secondary text-foreground rounded-lg text-sm font-medium flex items-center gap-2 hover:bg-secondary/80 transition-colors">
             <RefreshCw size={14} className={loading ? 'animate-spin' : ''} /> Refresh
@@ -760,7 +922,7 @@ const AdminDashboard = () => {
             <CardManagementPanel />
           </motion.div>
           <motion.div variants={item}>
-            <SecurityAlertPanel />
+            <SecurityAlertPanel logs={logs} />
           </motion.div>
         </div>
       )}

@@ -21,9 +21,14 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
   (response) => response,
   (error) => {
+    // Only force-redirect on 401 if the user is not logged in at all.
+    // This prevents kicking an already-authenticated admin to the landing page
+    // when an individual API call fails auth (e.g. token not yet propagated).
     if (error.response?.status === 401) {
-      localStorage.removeItem('user');
-      window.location.href = '/';
+      const stored = localStorage.getItem('user');
+      if (!stored) {
+        window.location.href = '/';
+      }
     }
     return Promise.reject(error);
   }
@@ -42,6 +47,9 @@ export const fetchStudentHistory = (roll, from, to) =>
 export const deleteStudentLogs = (uid, roll) =>
   api.delete(`/admin/student/${encodeURIComponent(uid)}/logs`, { params: { roll } }).then(res => res.data);
 
+export const deleteTodayLogs = () =>
+  api.delete('/admin/logs/today').then(res => res.data);
+
 export const updateStudentName = (uid, name) =>
   api.put(`/admin/student/${encodeURIComponent(uid)}`, { name }).then(res => res.data);
 
@@ -58,6 +66,9 @@ export const fetchCards = () =>
 
 export const registerCard = (uid, name, roll_no, role = 'STUDENT') =>
   api.post('/admin/cards', { uid, name, roll_no, role }).then(res => res.data);
+
+export const updateCardDetails = (uid, data) =>
+  api.put(`/admin/student/${encodeURIComponent(uid)}`, data).then(res => res.data);
 
 export const suspendCard = (uid) =>
   api.post(`/admin/cards/${encodeURIComponent(uid)}/suspend`).then(res => res.data);

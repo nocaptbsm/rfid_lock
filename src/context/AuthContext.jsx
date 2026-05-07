@@ -18,7 +18,8 @@ export const AuthProvider = ({ children }) => {
     localStorage.removeItem('user');
   };
 
-  const isAdmin = user?.role === 'admin';
+  // Case-insensitive check — backend may return 'ADMIN' or 'admin'
+  const isAdmin = user?.role?.toLowerCase() === 'admin';
 
   return (
     <AuthContext.Provider value={{ user, login, logout, isAdmin }}>

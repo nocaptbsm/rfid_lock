@@ -1,11 +1,23 @@
-import React from 'react';
-import { Award, Trophy, Medal } from 'lucide-react';
+import React, { useState, useMemo } from 'react';
+import { Award, Trophy, Medal, Search } from 'lucide-react';
 import { cn } from '@/utils/cn';
 import { useAuth } from '@/context/AuthContext';
 import { Link } from 'react-router-dom';
 
 const LeaderboardPanel = ({ leaderboard, loading, currentRoll, fullPage = false }) => {
   const { isAdmin } = useAuth();
+  const [searchQuery, setSearchQuery] = useState('');
+
+  const filteredLeaderboard = useMemo(() => {
+    if (!leaderboard) return [];
+    if (!fullPage || !searchQuery) return leaderboard;
+    const q = searchQuery.toLowerCase();
+    return leaderboard.filter(student => 
+      student.name.toLowerCase().includes(q) || 
+      (student.roll && student.roll.toLowerCase().includes(q))
+    );
+  }, [leaderboard, searchQuery, fullPage]);
+
   if (loading) {
     return (
       <div className="glass-card rounded-2xl p-6 flex flex-col items-center justify-center h-full min-h-[300px]">
@@ -35,7 +47,7 @@ const LeaderboardPanel = ({ leaderboard, loading, currentRoll, fullPage = false 
 
   return (
     <div className="glass-card rounded-2xl p-6 flex flex-col h-full">
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <div>
           <h3 className="text-lg font-semibold flex items-center gap-2">
             <Award size={20} className="text-primary" />
@@ -43,10 +55,22 @@ const LeaderboardPanel = ({ leaderboard, loading, currentRoll, fullPage = false 
           </h3>
           <p className="text-sm text-muted-foreground">Top students by total hours this month</p>
         </div>
+        
+        {fullPage && (
+          <div className="relative">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+            <input
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search student or roll no..."
+              className="pl-8 pr-3 py-2 text-sm bg-secondary/50 border border-border rounded-lg outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary w-full sm:w-64"
+            />
+          </div>
+        )}
       </div>
 
       <div className={cn("flex-1 overflow-y-auto pr-2 space-y-3", !fullPage && "max-h-[640px]")}>
-        {(fullPage ? leaderboard : leaderboard.slice(0, 10)).map((student) => {
+        {(fullPage ? filteredLeaderboard : filteredLeaderboard.slice(0, 10)).map((student) => {
           const isCurrentUser = currentRoll && student.roll === currentRoll;
           const InnerContent = (
             <div 
