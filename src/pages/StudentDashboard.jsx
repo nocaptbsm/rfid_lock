@@ -20,6 +20,7 @@ import LiveTimer from '@/components/cards/LiveTimer';
 import WeeklyBarChart from '@/components/charts/WeeklyBarChart';
 import MonthlyLineChart from '@/components/charts/MonthlyLineChart';
 import { useStudentLive } from '@/hooks/useStudentLive';
+import { isSessionActive } from '@/utils/sessionUtils';
 import { useAuth } from '@/context/AuthContext';
 import { useLeaderboard } from '@/hooks/useLeaderboard';
 import LeaderboardPanel from '@/components/panels/LeaderboardPanel';
@@ -255,17 +256,26 @@ const StudentDashboard = () => {
                       <td className="py-4">
                         {session.exit_time ? (
                           fmtDuration(session.duration_minutes)
-                        ) : (
+                        ) : isSessionActive(session) ? (
                           <LiveTimer entryTime={session.entry_time} />
+                        ) : (
+                          <span className="text-amber-500 text-xs font-medium">
+                            {fmtDuration(session.duration_minutes)} (auto-closed)
+                          </span>
                         )}
                       </td>
                       <td className="py-4">
                         {session.exit_time ? (
                           <span className="text-muted-foreground">Completed</span>
-                        ) : (
+                        ) : isSessionActive(session) ? (
                           <span className="text-emerald-500 font-bold flex items-center gap-1.5">
                             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
                             Active
+                          </span>
+                        ) : (
+                          <span className="text-amber-500 text-xs font-medium flex items-center gap-1.5">
+                            <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                            Auto-closed 9 PM
                           </span>
                         )}
                       </td>

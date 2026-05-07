@@ -12,6 +12,7 @@ import api, { deleteStudentLogs, updateStudentName, fetchCards, suspendCard, act
 import ConfirmDeleteModal from '@/components/modals/ConfirmDeleteModal';
 import { useLeaderboard } from '@/hooks/useLeaderboard';
 import LeaderboardPanel from '@/components/panels/LeaderboardPanel';
+import { getCutoffTime } from '@/utils/sessionUtils';
 
 /* ─── helpers ───────────────────────────────────────────────── */
 const cn = (...c) => c.filter(Boolean).join(' ');
@@ -62,6 +63,16 @@ const useLiveData = () => {
   }, [fetchAll]);
 
   return { logs, live, loading, error, lastSync, refresh: fetchAll };
+};
+
+/**
+ * Check if a live session is truly active (before 9 PM cutoff).
+ * Live sessions from the admin endpoint have entry_time but no exit_time.
+ */
+const isLiveSessionActive = (session) => {
+  if (!session || !session.entry_time) return false;
+  const cutoff = getCutoffTime(new Date(session.entry_time));
+  return new Date() < cutoff;
 };
 
 /* ─── Stat card ─────────────────────────────────────────────── */
@@ -141,51 +152,69 @@ const RenameCell = ({ rfid, fallback, onSave }) => {
 };
 
 /* ─── Active sessions panel ─────────────────────────────────── */
-const LiveSessionsPanel = ({ live, loading, onDeleteStudent, onRefresh }) => (
-  <div className="glass-card rounded-2xl overflow-hidden">
-    <div className="px-6 py-4 border-b border-border flex items-center gap-2">
-      <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-      <h2 className="text-base font-semibold">Live Sessions</h2>
-      <span className="ml-auto text-xs text-muted-foreground">{live.length} active</span>
+const LiveSessionsPanel = ({ live, loading, onDeleteStudent, onRefresh }) => {
+  const activeSessions = live.filter(s => isLiveSessionActive(s));
+  const autoClosedSessions = live.filter(s => !isLiveSessionActive(s));
+
+  return (
+    <div className="glass-card rounded-2xl overflow-hidden">
+      <div className="px-6 py-4 border-b border-border flex items-center gap-2">
+        <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+        <h2 className="text-base font-semibold">Live Sessions</h2>
+        <span className="ml-auto text-xs text-muted-foreground">
+          {activeSessions.length} active
+          {autoClosedSessions.length > 0 && ` • ${autoClosedSessions.length} auto-closed at 9 PM`}
+        </span>
+      </div>
+      {loading ? (
+        <div className="p-6 space-y-3">
+          {[1,2,3].map(i => <div key={i} className="h-10 bg-secondary/40 rounded-lg animate-pulse" />)}
+        </div>
+      ) : live.length === 0 ? (
+        <p className="text-center py-10 text-sm text-muted-foreground">No active sessions right now</p>
+      ) : (
+        <div className="divide-y divide-border/50">
+          {live.map((s) => {
+            const uid  = s.students?.uid  || '—';
+            const name = s.students?.name || uid;
+            const roll = s.students?.roll_no || '';
+            const active = isLiveSessionActive(s);
+            return (
+              <div key={s.id} className={cn(
+                "flex items-center gap-4 px-6 py-3 hover:bg-secondary/20 transition-colors group",
+                !active && "opacity-60"
+              )}>
+                <div className={cn(
+                  "w-8 h-8 rounded-full flex items-center justify-center shrink-0",
+                  active ? "bg-emerald-500/10" : "bg-amber-500/10"
+                )}>
+                  <Users size={14} className={active ? "text-emerald-500" : "text-amber-500"} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <RenameCell rfid={uid} fallback={name} onSave={onRefresh} />
+                  <p className="text-xs text-muted-foreground">
+                    {roll} • entered {fmtTime(s.entry_time)}
+                    {!active && <span className="text-amber-500 ml-1">• auto-closed 9 PM</span>}
+                  </p>
+                </div>
+                <div className="flex items-center gap-3">
+                  <code className="text-xs font-mono text-muted-foreground bg-secondary/50 px-2 py-0.5 rounded">{uid}</code>
+                  <button
+                     onClick={() => onDeleteStudent({ uid, name, roll })}
+                     className="p-1.5 rounded-lg text-muted-foreground hover:text-rose-500 hover:bg-rose-500/10 transition-colors opacity-0 group-hover:opacity-100"
+                     title="Delete all records for this student"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
-    {loading ? (
-      <div className="p-6 space-y-3">
-        {[1,2,3].map(i => <div key={i} className="h-10 bg-secondary/40 rounded-lg animate-pulse" />)}
-      </div>
-    ) : live.length === 0 ? (
-      <p className="text-center py-10 text-sm text-muted-foreground">No active sessions right now</p>
-    ) : (
-      <div className="divide-y divide-border/50">
-        {live.map((s) => {
-          const uid  = s.students?.uid  || '—';
-          const name = s.students?.name || uid;
-          const roll = s.students?.roll_no || '';
-          return (
-            <div key={s.id} className="flex items-center gap-4 px-6 py-3 hover:bg-secondary/20 transition-colors group">
-              <div className="w-8 h-8 rounded-full bg-emerald-500/10 flex items-center justify-center shrink-0">
-                <Users size={14} className="text-emerald-500" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <RenameCell rfid={uid} fallback={name} onSave={onRefresh} />
-                <p className="text-xs text-muted-foreground">{roll} • entered {fmtTime(s.entry_time)}</p>
-              </div>
-              <div className="flex items-center gap-3">
-                <code className="text-xs font-mono text-muted-foreground bg-secondary/50 px-2 py-0.5 rounded">{uid}</code>
-                <button
-                   onClick={() => onDeleteStudent({ uid, name, roll })}
-                   className="p-1.5 rounded-lg text-muted-foreground hover:text-rose-500 hover:bg-rose-500/10 transition-colors opacity-0 group-hover:opacity-100"
-                   title="Delete all records for this student"
-                >
-                  <Trash2 size={14} />
-                </button>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    )}
-  </div>
-);
+  );
+};
 
 /* ─── Full RFID log table ───────────────────────────────────── */
 const RfidLogTable = ({ logs, loading, onDeleteStudent, onRefresh }) => {
@@ -893,7 +922,7 @@ const AdminDashboard = () => {
         <>
           {/* Stats */}
           <motion.div variants={item} className="grid grid-cols-1 sm:grid-cols-3 gap-5">
-            <StatCard title="Currently Inside"  value={live.length}   icon={Users}    color="primary" loading={loading} />
+            <StatCard title="Currently Inside"  value={live.filter(s => isLiveSessionActive(s)).length}   icon={Users}    color="primary" loading={loading} />
             <StatCard title="Total Entries Today" value={uniqueEntriesToday} icon={LogIn}    color="emerald" loading={loading} />
             <StatCard title="Daily Avg Entries"   value={dailyAvg}   icon={Activity} color="amber"   loading={loading} />
           </motion.div>

@@ -5,6 +5,7 @@ import { fetchStudentStats } from '@/api';
 import { useAuth } from '@/context/AuthContext';
 import { Link, useParams } from 'react-router-dom';
 import StatusBadge from '@/components/cards/StatusBadge';
+import { applySessionsCutoff, isSessionActive } from '@/utils/sessionUtils';
 
 const fmtDate = (iso) => {
   if (!iso) return '--';
@@ -46,9 +47,10 @@ const StudentHistory = () => {
               if (!existingIds.has(s.id)) allSessions.push(s);
             });
           }
-          // Sort descending
-          allSessions.sort((a, b) => new Date(b.entry_time) - new Date(a.entry_time));
-          setHistory(allSessions);
+           // Sort descending
+           allSessions.sort((a, b) => new Date(b.entry_time) - new Date(a.entry_time));
+           // Apply 9 PM cutoff
+           setHistory(applySessionsCutoff(allSessions));
         } catch (error) {
           console.error('Failed to fetch history:', error);
         } finally {
@@ -123,7 +125,12 @@ const StudentHistory = () => {
                         <div className="flex items-center gap-2 text-white/70">
                           <span className="w-2 h-2 rounded-full bg-rose-400"></span>
                           {fmtTime(session.exit_time)}
+                          {session._autoClosed && (
+                            <span className="text-xs text-amber-400 ml-1">(9 PM cutoff)</span>
+                          )}
                         </div>
+                      ) : isSessionActive(session) ? (
+                        <span className="text-emerald-400 italic text-xs font-semibold">Active now</span>
                       ) : (
                         <span className="text-white/40 italic">--</span>
                       )}
@@ -134,12 +141,14 @@ const StudentHistory = () => {
                           <Clock size={14} />
                           {fmtDuration(session.duration_minutes)}
                         </div>
-                      ) : (
+                      ) : isSessionActive(session) ? (
                         <span className="text-amber-400 text-xs font-semibold px-2 py-1 bg-amber-400/10 rounded-md">Active</span>
+                      ) : (
+                        <span className="text-amber-400 text-xs font-semibold px-2 py-1 bg-amber-400/10 rounded-md">Auto-closed</span>
                       )}
                     </td>
                     <td className="px-6 py-4 text-center">
-                       <StatusBadge active={!session.exit_time} />
+                       <StatusBadge active={!session.exit_time && isSessionActive(session)} />
                     </td>
                   </tr>
                 ))}

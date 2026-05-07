@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { fetchStudentStats } from '@/api';
+import { applySessionsCutoff, getEffectiveNow, isSessionActive } from '@/utils/sessionUtils';
 
 export const useStudentLive = (roll) => {
   const [data, setData] = useState({
@@ -21,8 +22,12 @@ export const useStudentLive = (roll) => {
     
     try {
       const result = await fetchStudentStats(roll);
-      const allSessions = result.weeklySessions || result.todaySessions || [];
-      const todaySessions = result.todaySessions || [];
+
+      // Apply 9 PM cutoff to all sessions
+      const allSessionsRaw = result.weeklySessions || result.todaySessions || [];
+      const todaySessionsRaw = result.todaySessions || [];
+      const allSessions = applySessionsCutoff(allSessionsRaw);
+      const todaySessions = applySessionsCutoff(todaySessionsRaw);
       
       const monthlyData = [];
       const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -38,9 +43,11 @@ export const useStudentLive = (roll) => {
         });
         const totalMinutes = Math.min(1440, daySessions.reduce((acc, s) => {
           let mins = s.duration_minutes || 0;
-          if (!s.exit_time) {
+          // For sessions still open (before 9 PM cutoff today), calculate live duration
+          if (!s.exit_time && isSessionActive(s)) {
             const start = new Date(s.entry_time);
-            mins = Math.round((new Date() - start) / 60000);
+            const effectiveEnd = getEffectiveNow(s.entry_time);
+            mins = Math.round((effectiveEnd - start) / 60000);
           }
           return acc + mins;
         }, 0));
@@ -56,6 +63,10 @@ export const useStudentLive = (roll) => {
       const weeklyTotalMinutes = weeklyData.reduce((acc, d) => acc + (d.hours * 60), 0);
       const weeklyAvgHours = Number((weeklyTotalMinutes / 60 / 7).toFixed(1));
 
+      // Determine if student is truly "inside" — only if they have an active session
+      // that hasn't been auto-closed by the 9 PM cutoff
+      const isInside = result.isCurrentlyInside && todaySessions.some(s => isSessionActive(s));
+
       setData({
         profile: result.student,
         sessions: todaySessions,
@@ -63,7 +74,7 @@ export const useStudentLive = (roll) => {
         monthlyData,
         weeklyTotalMinutes,
         weeklyAvgHours,
-        inside: result.isCurrentlyInside,
+        inside: isInside,
         loading: false,
         error: '',
         lastSync: new Date()
@@ -130,7 +141,7 @@ export const useStudentLive = (roll) => {
         ws.current.onerror = () => {
           setWsStatus('error');
         };
-      } catch (err) {
+      } catch (err) { // eslint-disable-line no-unused-vars
         setWsStatus('error');
       }
     };
@@ -152,19 +163,23 @@ export const useStudentLive = (roll) => {
     }
   }, [wsStatus, refresh]);
 
-  // Derived Stats
+  // Derived Stats — with 9 PM cutoff applied
   const stats = {
+    // Entry time = first session's entry (sessions are ordered newest-first from API)
     todayEntry: data.sessions.length > 0 
       ? new Date(data.sessions[data.sessions.length - 1].entry_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
       : '--',
+    // Exit time = most recent session's exit (first in the array)
     todayExit: (data.sessions.length > 0 && data.sessions[0].exit_time)
       ? new Date(data.sessions[0].exit_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
       : '--',
     totalMinutes: data.sessions.reduce((acc, s) => {
       let mins = s.duration_minutes || 0;
-      if (!s.exit_time) {
+      // For still-active sessions (before 9 PM), use live elapsed time
+      if (!s.exit_time && isSessionActive(s)) {
         const start = new Date(s.entry_time);
-        mins = Math.round((new Date() - start) / 60000);
+        const effectiveEnd = getEffectiveNow(s.entry_time);
+        mins = Math.round((effectiveEnd - start) / 60000);
       }
       return acc + mins;
     }, 0),
