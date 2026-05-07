@@ -91,7 +91,8 @@ const RenameCell = ({ rfid, fallback, onSave }) => {
   const [loading, setLoading] = useState(false);
   const [draft,   setDraft]   = useState('');
   const current = aliases[rfid?.toUpperCase()];
-  const display = current || fallback || rfid;
+  const isRegisteredName = fallback && fallback !== rfid && fallback !== 'UNKNOWN_CARD' && fallback !== 'CARD_SUSPENDED';
+  const display = isRegisteredName ? fallback : (current || fallback || rfid);
 
   const startEdit = () => { setDraft(current || fallback || ''); setEditing(true); };
   const save = async () => {
