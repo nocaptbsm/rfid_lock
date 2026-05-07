@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
-import { fetchStudentStats } from '@/api';
+import { studentLogin as studentLoginApi } from '@/api';
 import { ArrowRight, AlertCircle, Loader2, ShieldCheck, User, MapPin, BookOpen, Star, Wifi } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -21,6 +21,7 @@ const FEATURES = [
 
 const StudentLogin = () => {
   const [roll, setRoll]         = useState('');
+  const [password, setPassword] = useState('');
   const [loading, setLoading]   = useState(false);
   const [error, setError]       = useState('');
   const [slideIdx, setSlideIdx] = useState(0);
@@ -35,13 +36,13 @@ const StudentLogin = () => {
 
   const handleLogin = async (e) => {
     e.preventDefault();
-    if (!roll.trim()) return setError('Please enter your Card UID');
+    if (!roll.trim() || !password.trim()) return setError('Please enter your Card UID and Password');
 
     setLoading(true);
     setError('');
 
     try {
-      const result = await fetchStudentStats(roll.toUpperCase());
+      const result = await studentLoginApi(roll.toUpperCase(), password);
       
       if (result.student.role === 'MASTER') {
         setError('Master keys cannot be used for student login.');
@@ -57,10 +58,10 @@ const StudentLogin = () => {
       });
       navigate(`/student/${result.student.roll_no}`);
     } catch (err) {
-      if (err.response?.status === 404) {
-        setError('Record not found. Have you scanned your RFID card yet?');
+      if (err.response?.status === 401 || err.response?.status === 400) {
+        setError('Invalid UID or Password. Please try again.');
       } else {
-        setError('Connection error. Please try again.');
+        setError(err.response?.data?.error || 'Unable to login right now.');
       }
     } finally {
       setLoading(false);
@@ -217,6 +218,18 @@ const StudentLogin = () => {
                   onChange={(e) => setRoll(e.target.value)}
                   className="field-input"
                   autoComplete="off"
+                />
+              </div>
+
+              <div className="field-group">
+                <label htmlFor="password" className="field-label">Password</label>
+                <input
+                  id="password"
+                  type="password"
+                  placeholder="Enter your password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="field-input"
                 />
               </div>
 

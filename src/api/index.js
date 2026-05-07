@@ -33,6 +33,9 @@ api.interceptors.response.use(
 export const fetchStudentStats = (roll) => 
   api.get(`/student/${encodeURIComponent(roll)}`).then(res => res.data);
 
+export const studentLogin = (uid, password) =>
+  api.post('/student/login', { uid, password }).then(res => res.data);
+
 export const fetchStudentHistory = (roll, from, to) =>
   api.get(`/student/${encodeURIComponent(roll)}/history`, { params: { from, to } }).then(res => res.data);
 
@@ -61,6 +64,9 @@ export const suspendCard = (uid) =>
 
 export const activateCard = (uid) =>
   api.post(`/admin/cards/${encodeURIComponent(uid)}/activate`).then(res => res.data);
+
+export const deleteCard = (uid) =>
+  api.delete(`/admin/cards/${encodeURIComponent(uid)}`).then(res => res.data);
 
 // ─── Security Log ───────────────────────────────────────────────────
 export const fetchSecurityLog = () =>

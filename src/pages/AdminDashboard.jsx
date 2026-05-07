@@ -8,7 +8,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRfid } from '@/context/RfidContext';
-import api, { deleteStudentLogs, updateStudentName, fetchCards, suspendCard, activateCard, registerCard, fetchSecurityLog } from '@/api';
+import api, { deleteStudentLogs, updateStudentName, fetchCards, suspendCard, activateCard, registerCard, fetchSecurityLog, deleteCard } from '@/api';
 import ConfirmDeleteModal from '@/components/modals/ConfirmDeleteModal';
 import { useLeaderboard } from '@/hooks/useLeaderboard';
 import LeaderboardPanel from '@/components/panels/LeaderboardPanel';
@@ -279,12 +279,24 @@ const RfidLogTable = ({ logs, loading, onDeleteStudent, onRefresh }) => {
                 {paginated.map((row, idx) => {
                   const uid  = row.students?.uid  || '—';
                   const name = row.students?.name || uid;
+                  const rowDate = new Date(row.timestamp).toLocaleDateString(undefined, { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' });
+                  const prevDate = idx > 0 ? new Date(paginated[idx-1].timestamp).toLocaleDateString(undefined, { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' }) : null;
+                  const showDateHeader = rowDate !== prevDate;
+                  
                   return (
-                    <motion.tr key={row.id} layout
-                      initial={{ opacity: 0, x: -6 }} animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: Math.min(idx * 0.015, 0.3) }}
-                      className="border-b border-border/50 hover:bg-secondary/20 transition-colors"
-                    >
+                    <React.Fragment key={row.id}>
+                      {showDateHeader && (
+                        <tr>
+                          <td colSpan={5} className="bg-secondary/40 px-6 py-2 text-xs font-semibold text-muted-foreground border-y border-border">
+                            {rowDate}
+                          </td>
+                        </tr>
+                      )}
+                      <motion.tr layout
+                        initial={{ opacity: 0, x: -6 }} animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: Math.min(idx * 0.015, 0.3) }}
+                        className="border-b border-border/50 hover:bg-secondary/20 transition-colors"
+                      >
                       <td className="px-6 py-3.5 text-muted-foreground text-xs">{row.id}</td>
                       <td className="px-6 py-3.5">
                         <code className="text-xs font-mono bg-secondary/70 px-2 py-1 rounded-md">{uid}</code>
@@ -307,6 +319,7 @@ const RfidLogTable = ({ logs, loading, onDeleteStudent, onRefresh }) => {
                       </td>
                       <td className="px-6 py-3.5 text-muted-foreground text-xs tabular-nums">{fmtTime(row.timestamp)}</td>
                     </motion.tr>
+                  </React.Fragment>
                   );
                 })}
               </AnimatePresence>
@@ -386,16 +399,32 @@ const CardManagementPanel = () => {
     }
   };
 
+  const handleDeleteCard = async (uid) => {
+    if (!window.confirm(`Are you sure you want to permanently delete card ${uid}? This will also delete all of the student's access records.`)) return;
+    setActionLoading(`delete-${uid}`);
+    try {
+      await deleteCard(uid);
+      await loadCards();
+    } catch (err) {
+      setError(err.response?.data?.error || 'Delete failed');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
   const handleRegister = async (e) => {
     e.preventDefault();
     if (!newCard.uid) return;
     if (newCard.role === 'STUDENT' && !newCard.name) return;
     setActionLoading('register');
     try {
-      await registerCard(newCard.uid.toUpperCase(), newCard.name, '', newCard.role);
+      const res = await registerCard(newCard.uid.toUpperCase(), newCard.name, '', newCard.role);
       setNewCard({ uid: '', name: '', role: 'STUDENT' });
       setShowRegister(false);
       await loadCards();
+      if (res.generatedPassword) {
+        window.alert(`Successfully registered ${newCard.name}. Generated Password for student login: ${res.generatedPassword}`);
+      }
     } catch (err) {
       setError(err.response?.data?.error || 'Registration failed');
     } finally {
@@ -514,14 +543,20 @@ const CardManagementPanel = () => {
                   : 'bg-rose-500/15 text-rose-600 dark:text-rose-400')}>
                 {card.status}
               </span>
-              <button onClick={() => handleToggleStatus(card.uid, card.status)} disabled={actionLoading === card.uid}
-                className={cn('px-3 py-1.5 text-xs font-medium rounded-lg transition-all flex items-center gap-1.5 opacity-0 group-hover:opacity-100',
-                  card.status === 'AUTHORIZED' 
-                    ? 'bg-rose-500/10 text-rose-500 hover:bg-rose-500/20' 
-                    : 'bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500/20')}>
-                {actionLoading === card.uid ? <Loader2 size={12} className="animate-spin" /> 
-                  : card.status === 'AUTHORIZED' ? <><Ban size={12} /> Suspend</> : <><CheckCircle2 size={12} /> Activate</>}
-              </button>
+              <div className="flex items-center gap-1">
+                <button onClick={() => handleToggleStatus(card.uid, card.status)} disabled={actionLoading === card.uid || actionLoading === `delete-${card.uid}`}
+                  className={cn('px-3 py-1.5 text-xs font-medium rounded-lg transition-all flex items-center gap-1.5 opacity-0 group-hover:opacity-100',
+                    card.status === 'AUTHORIZED' 
+                      ? 'bg-amber-500/10 text-amber-500 hover:bg-amber-500/20' 
+                      : 'bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500/20')}>
+                  {actionLoading === card.uid ? <Loader2 size={12} className="animate-spin" /> 
+                    : card.status === 'AUTHORIZED' ? <><Ban size={12} /> Suspend</> : <><CheckCircle2 size={12} /> Activate</>}
+                </button>
+                <button onClick={() => handleDeleteCard(card.uid)} disabled={actionLoading === card.uid || actionLoading === `delete-${card.uid}`}
+                  className="p-1.5 rounded-lg transition-all flex items-center gap-1.5 opacity-0 group-hover:opacity-100 bg-rose-500/10 text-rose-500 hover:bg-rose-500/20">
+                  {actionLoading === `delete-${card.uid}` ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                </button>
+              </div>
             </div>
           ))}
         </div>
