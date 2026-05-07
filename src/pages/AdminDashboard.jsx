@@ -352,7 +352,7 @@ const CardManagementPanel = () => {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [showRegister, setShowRegister] = useState(false);
-  const [newCard, setNewCard] = useState({ uid: '', name: '', roll_no: '', role: 'STUDENT' });
+  const [newCard, setNewCard] = useState({ uid: '', name: '', role: 'STUDENT' });
   const [actionLoading, setActionLoading] = useState(null);
   const [error, setError] = useState('');
 
@@ -389,11 +389,11 @@ const CardManagementPanel = () => {
   const handleRegister = async (e) => {
     e.preventDefault();
     if (!newCard.uid) return;
-    if (newCard.role === 'STUDENT' && (!newCard.name || !newCard.roll_no)) return;
+    if (newCard.role === 'STUDENT' && !newCard.name) return;
     setActionLoading('register');
     try {
-      await registerCard(newCard.uid.toUpperCase(), newCard.name, newCard.roll_no, newCard.role);
-      setNewCard({ uid: '', name: '', roll_no: '', role: 'STUDENT' });
+      await registerCard(newCard.uid.toUpperCase(), newCard.name, '', newCard.role);
+      setNewCard({ uid: '', name: '', role: 'STUDENT' });
       setShowRegister(false);
       await loadCards();
     } catch (err) {
@@ -472,18 +472,11 @@ const CardManagementPanel = () => {
                     placeholder="e.g. A3B2C1D4" className="px-3 py-2 text-sm bg-secondary/50 border border-border rounded-lg w-32 outline-none focus:ring-2 focus:ring-primary/20" />
                 </div>
                 {newCard.role === 'STUDENT' && (
-                  <>
-                    <div>
-                      <label className="text-xs font-medium text-muted-foreground block mb-1">Student Name</label>
-                      <input value={newCard.name} onChange={(e) => setNewCard(p => ({...p, name: e.target.value}))}
-                        placeholder="Full name" className="px-3 py-2 text-sm bg-secondary/50 border border-border rounded-lg w-40 outline-none focus:ring-2 focus:ring-primary/20" />
-                    </div>
-                    <div>
-                      <label className="text-xs font-medium text-muted-foreground block mb-1">Roll Number</label>
-                      <input value={newCard.roll_no} onChange={(e) => setNewCard(p => ({...p, roll_no: e.target.value}))}
-                        placeholder="Roll No." className="px-3 py-2 text-sm bg-secondary/50 border border-border rounded-lg w-32 outline-none focus:ring-2 focus:ring-primary/20" />
-                    </div>
-                  </>
+                  <div>
+                    <label className="text-xs font-medium text-muted-foreground block mb-1">Student Name</label>
+                    <input value={newCard.name} onChange={(e) => setNewCard(p => ({...p, name: e.target.value}))}
+                      placeholder="Full name" className="px-3 py-2 text-sm bg-secondary/50 border border-border rounded-lg w-40 outline-none focus:ring-2 focus:ring-primary/20" />
+                  </div>
                 )}
                 <button type="submit" disabled={actionLoading === 'register'}
                   className="px-4 py-2 bg-primary text-primary-foreground text-sm font-medium rounded-lg flex items-center gap-1.5 disabled:opacity-50">

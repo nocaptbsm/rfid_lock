@@ -35,7 +35,7 @@ const StudentLogin = () => {
 
   const handleLogin = async (e) => {
     e.preventDefault();
-    if (!roll.trim()) return setError('Please enter your roll number');
+    if (!roll.trim()) return setError('Please enter your Card UID');
 
     setLoading(true);
     setError('');
@@ -208,11 +208,11 @@ const StudentLogin = () => {
 
             <form onSubmit={handleLogin} className="login-form">
               <div className="field-group">
-                <label htmlFor="roll" className="field-label">Roll Number</label>
+                <label htmlFor="roll" className="field-label">Card UID</label>
                 <input
                   id="roll"
                   type="text"
-                  placeholder="e.g. 21CS042"
+                  placeholder="e.g. A3B2C1D4"
                   value={roll}
                   onChange={(e) => setRoll(e.target.value)}
                   className="field-input"
