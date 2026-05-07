@@ -194,11 +194,11 @@ const StudentDashboard = () => {
           </div>
           <div className="flex flex-col gap-6 pt-2">
             {monthlyData?.length > 0 ? (
-              <div className="h-[180px] w-full shrink-0">
+              <div className="h-[200px] sm:h-[240px] w-full shrink-0 relative">
                 <MonthlyLineChart data={monthlyData} />
               </div>
             ) : (
-              <div className="h-[180px] w-full shrink-0 flex items-center justify-center border border-dashed border-border rounded-xl">
+              <div className="h-[200px] sm:h-[240px] w-full shrink-0 flex items-center justify-center border border-dashed border-border rounded-xl">
                 <p className="text-sm text-muted-foreground italic">No data available yet</p>
               </div>
             )}
