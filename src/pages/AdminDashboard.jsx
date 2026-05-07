@@ -4,11 +4,11 @@ import {
   Check, X, LogIn, LogOut, ChevronDown, ChevronUp,
   Download, RefreshCw, Loader2, AlertCircle, Wifi,
   Trash2, Shield, ShieldAlert, ShieldCheck, ShieldX,
-  CreditCard, Plus, Ban, CheckCircle2
+  CreditCard, Plus, Ban, CheckCircle2, Calendar
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion'; // eslint-disable-line no-unused-vars
 import { useRfid } from '@/context/RfidContext';
-import api, { deleteStudentLogs, updateStudentName, fetchCards, suspendCard, activateCard, registerCard, fetchSecurityLog, deleteCard, updateCardDetails, deleteTodayLogs } from '@/api';
+import api, { deleteStudentLogs, updateStudentName, fetchCards, suspendCard, activateCard, registerCard, fetchSecurityLog, deleteCard, updateCardDetails, deleteLogsByDateRange } from '@/api';
 import ConfirmDeleteModal from '@/components/modals/ConfirmDeleteModal';
 import { useLeaderboard } from '@/hooks/useLeaderboard';
 import LeaderboardPanel from '@/components/panels/LeaderboardPanel';
@@ -813,20 +813,40 @@ const AdminDashboard = () => {
     }
   };
 
-  const [clearingToday, setClearingToday] = useState(false);
+  // ─── Delete Records by Date Range ──────────────────────────
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleteRange, setDeleteRange] = useState({
+    from: new Date().toISOString().split('T')[0],
+    to: new Date().toISOString().split('T')[0],
+  });
+  const [deletingRange, setDeletingRange] = useState(false);
+  const [deleteError, setDeleteError] = useState('');
+  const [deleteSuccess, setDeleteSuccess] = useState('');
 
-  const confirmDeleteToday = async () => {
-    if (!window.confirm("Are you sure you want to permanently delete ALL records from today? This action cannot be undone and will delete entry, exit, and session logs.")) return;
-    setClearingToday(true);
+  const handleDeleteByRange = async () => {
+    if (!deleteRange.from || !deleteRange.to) return;
+    if (new Date(deleteRange.from) > new Date(deleteRange.to)) {
+      setDeleteError('Start date must be before or equal to end date.');
+      return;
+    }
+    setDeletingRange(true);
+    setDeleteError('');
+    setDeleteSuccess('');
     try {
-      await deleteTodayLogs();
+      const result = await deleteLogsByDateRange(deleteRange.from, deleteRange.to);
+      const msg = result?.message || `Records from ${deleteRange.from} to ${deleteRange.to} deleted.`;
+      setDeleteSuccess(msg);
       refresh();
-      window.alert("Successfully deleted all of today's records.");
+      // Auto-close after 2 seconds
+      setTimeout(() => {
+        setShowDeleteModal(false);
+        setDeleteSuccess('');
+      }, 2000);
     } catch (err) {
-      console.error('Failed to delete today logs:', err);
-      window.alert(err.response?.data?.error || "Failed to delete today's records.");
+      console.error('Failed to delete logs:', err);
+      setDeleteError(err.response?.data?.error || err.message || 'Failed to delete records.');
     } finally {
-      setClearingToday(false);
+      setDeletingRange(false);
     }
   };
 
@@ -892,10 +912,9 @@ const AdminDashboard = () => {
             </span>
           )}
           
-          <button onClick={confirmDeleteToday} disabled={clearingToday}
-            className="px-4 py-2 bg-rose-500/10 text-rose-500 hover:bg-rose-500/20 disabled:opacity-50 rounded-lg text-sm font-medium flex items-center gap-2 transition-colors">
-            {clearingToday ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />} 
-            Clear Today
+          <button onClick={() => setShowDeleteModal(true)}
+            className="px-4 py-2 bg-rose-500/10 text-rose-500 hover:bg-rose-500/20 rounded-lg text-sm font-medium flex items-center gap-2 transition-colors">
+            <Trash2 size={14} /> Delete Records
           </button>
           
           <button onClick={refresh}
@@ -962,6 +981,126 @@ const AdminDashboard = () => {
         onCancel={() => setTargetStudent(null)}
         loading={deleting}
       />
+
+      {/* Delete Records by Date Range Modal */}
+      <AnimatePresence>
+        {showDeleteModal && (
+          <>
+            {/* Backdrop */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50"
+              onClick={() => { setShowDeleteModal(false); setDeleteError(''); setDeleteSuccess(''); }}
+            />
+            {/* Modal */}
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="fixed inset-0 z-50 flex items-center justify-center p-4"
+            >
+              <div className="glass-card rounded-2xl p-6 w-full max-w-md space-y-5 shadow-2xl" onClick={e => e.stopPropagation()}>
+                {/* Header */}
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-rose-500/10 flex items-center justify-center">
+                      <Trash2 size={20} className="text-rose-500" />
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-semibold">Delete Records</h3>
+                      <p className="text-xs text-muted-foreground">Select a date range to delete RFID logs</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => { setShowDeleteModal(false); setDeleteError(''); setDeleteSuccess(''); }}
+                    className="p-1.5 rounded-lg hover:bg-secondary transition-colors text-muted-foreground"
+                  >
+                    <X size={18} />
+                  </button>
+                </div>
+
+                {/* Date inputs */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
+                      <Calendar size={12} /> From
+                    </label>
+                    <input
+                      type="date"
+                      value={deleteRange.from}
+                      onChange={e => setDeleteRange(prev => ({ ...prev, from: e.target.value }))}
+                      className="w-full px-3 py-2.5 bg-secondary/50 border border-border rounded-xl text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
+                      <Calendar size={12} /> To
+                    </label>
+                    <input
+                      type="date"
+                      value={deleteRange.to}
+                      onChange={e => setDeleteRange(prev => ({ ...prev, to: e.target.value }))}
+                      className="w-full px-3 py-2.5 bg-secondary/50 border border-border rounded-xl text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all"
+                    />
+                  </div>
+                </div>
+
+                {/* Quick presets */}
+                <div className="flex flex-wrap gap-2">
+                  {[
+                    { label: 'Today', fn: () => { const d = new Date().toISOString().split('T')[0]; setDeleteRange({ from: d, to: d }); }},
+                    { label: 'Last 7 days', fn: () => { const to = new Date(); const from = new Date(); from.setDate(from.getDate() - 7); setDeleteRange({ from: from.toISOString().split('T')[0], to: to.toISOString().split('T')[0] }); }},
+                    { label: 'Last 30 days', fn: () => { const to = new Date(); const from = new Date(); from.setDate(from.getDate() - 30); setDeleteRange({ from: from.toISOString().split('T')[0], to: to.toISOString().split('T')[0] }); }},
+                  ].map(preset => (
+                    <button key={preset.label} onClick={preset.fn}
+                      className="px-3 py-1.5 text-xs font-medium rounded-lg bg-secondary/60 hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors">
+                      {preset.label}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Warning */}
+                <div className="flex items-start gap-2 p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl text-xs text-amber-600 dark:text-amber-400">
+                  <AlertCircle size={14} className="mt-0.5 shrink-0" />
+                  <span>This will permanently delete all RFID entry, exit, and session logs in the selected range. This action cannot be undone.</span>
+                </div>
+
+                {/* Error / Success */}
+                {deleteError && (
+                  <div className="flex items-center gap-2 p-3 bg-rose-500/10 text-rose-500 rounded-xl text-xs">
+                    <AlertCircle size={14} /> {deleteError}
+                  </div>
+                )}
+                {deleteSuccess && (
+                  <div className="flex items-center gap-2 p-3 bg-emerald-500/10 text-emerald-500 rounded-xl text-xs">
+                    <CheckCircle2 size={14} /> {deleteSuccess}
+                  </div>
+                )}
+
+                {/* Actions */}
+                <div className="flex items-center justify-end gap-3 pt-2">
+                  <button
+                    onClick={() => { setShowDeleteModal(false); setDeleteError(''); setDeleteSuccess(''); }}
+                    className="px-4 py-2.5 rounded-xl text-sm font-medium bg-secondary hover:bg-secondary/80 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleDeleteByRange}
+                    disabled={deletingRange || !deleteRange.from || !deleteRange.to}
+                    className="px-4 py-2.5 rounded-xl text-sm font-semibold bg-rose-500 text-white hover:bg-rose-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 transition-colors shadow-lg shadow-rose-500/20"
+                  >
+                    {deletingRange ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                    Delete Records
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
 
     </motion.div>
   );

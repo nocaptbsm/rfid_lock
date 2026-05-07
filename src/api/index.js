@@ -47,8 +47,8 @@ export const fetchStudentHistory = (roll, from, to) =>
 export const deleteStudentLogs = (uid, roll) =>
   api.delete(`/admin/student/${encodeURIComponent(uid)}/logs`, { params: { roll } }).then(res => res.data);
 
-export const deleteTodayLogs = () =>
-  api.delete('/admin/logs/today').then(res => res.data);
+export const deleteLogsByDateRange = (from, to) =>
+  api.delete('/admin/logs', { params: { from, to } }).then(res => res.data);
 
 export const updateStudentName = (uid, name) =>
   api.put(`/admin/student/${encodeURIComponent(uid)}`, { name }).then(res => res.data);
