@@ -452,15 +452,57 @@ const attendanceService = {
   },
 
   updateStudentName: async (uid, name) => {
+    const normalizedUid = uid.toUpperCase();
+
+    // Recalculate password based on new name + existing UID
+    const cleanName = name.trim().replace(/\s+/g, '');
+    const namePart = (cleanName.length >= 4 ? cleanName.substring(0, 4) : cleanName).toLowerCase();
+    const uidPart = normalizedUid.slice(-4).toLowerCase();
+    const newPassword = `${namePart}${uidPart}`;
+
     const { data, error } = await supabase
       .from('students')
-      .update({ name: name.trim() })
-      .eq('uid', uid)
+      .update({ name: name.trim(), password: newPassword })
+      .eq('uid', normalizedUid)
       .select()
       .single();
 
     if (error) throw error;
-    return data;
+    return { ...data, generatedPassword: newPassword };
+  },
+
+  updateCardDetails: async (oldUid, { uid: newUid, name }) => {
+    const normalizedOldUid = oldUid.toUpperCase();
+
+    // Fetch current record to fill in any missing fields
+    const { data: current, error: fetchErr } = await supabase
+      .from('students')
+      .select('*')
+      .eq('uid', normalizedOldUid)
+      .single();
+
+    if (fetchErr || !current) throw new Error('Student not found');
+
+    const resolvedName = name ? name.trim() : current.name;
+    const resolvedUid  = newUid ? newUid.trim().toUpperCase() : normalizedOldUid;
+
+    // Regenerate password with potentially updated name + UID
+    const cleanName = resolvedName.replace(/\s+/g, '');
+    const namePart  = (cleanName.length >= 4 ? cleanName.substring(0, 4) : cleanName).toLowerCase();
+    const uidPart   = resolvedUid.slice(-4).toLowerCase();
+    const newPassword = current.role === 'MASTER' ? current.password : `${namePart}${uidPart}`;
+
+    const updatePayload = { name: resolvedName, uid: resolvedUid, password: newPassword };
+
+    const { data, error } = await supabase
+      .from('students')
+      .update(updatePayload)
+      .eq('uid', normalizedOldUid)
+      .select()
+      .single();
+
+    if (error) throw error;
+    return { ...data, generatedPassword: newPassword };
   },
 
   getLeaderboard: async () => {

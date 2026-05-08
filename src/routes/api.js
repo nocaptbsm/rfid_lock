@@ -165,15 +165,30 @@ router.delete('/admin/student/:uid/logs', requireAdmin, async (req, res) => {
 });
 
 /**
- * PUT /admin/student/:uid — Update student name
+ * PUT /admin/student/:uid — Update student name and/or UID
+ * Accepts: { name, uid } — uid is optional (card-edit form sends both)
+ * Always regenerates the student's login password to match the new name/UID.
  */
 router.put('/admin/student/:uid', requireAdmin, async (req, res) => {
   try {
     const { uid } = req.params;
-    const { name } = req.body;
-    if (!name) return res.status(400).json({ error: 'Name is required' });
+    const { name, uid: newUid } = req.body;
 
-    const result = await attendanceService.updateStudentName(uid, name);
+    if (!name && !newUid) {
+      return res.status(400).json({ error: 'At least name or uid is required' });
+    }
+
+    let result;
+    if (newUid && newUid.trim().toUpperCase() !== uid.toUpperCase()) {
+      // Full card update: name + UID changed — use updateCardDetails
+      if (!name) return res.status(400).json({ error: 'Name is required when changing UID' });
+      result = await attendanceService.updateCardDetails(uid, { uid: newUid, name });
+    } else {
+      // Name-only update
+      if (!name) return res.status(400).json({ error: 'Name is required' });
+      result = await attendanceService.updateStudentName(uid, name);
+    }
+
     res.json(result);
   } catch (error) {
     res.status(500).json({ error: error.message });
