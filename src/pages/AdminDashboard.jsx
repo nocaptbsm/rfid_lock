@@ -113,10 +113,13 @@ const RenameCell = ({ rfid, fallback, onSave }) => {
     if (!draft.trim()) return cancel();
     setLoading(true);
     try {
-      await updateStudentName(rfid, draft.trim());
+      const res = await updateStudentName(rfid, draft.trim());
       setAlias(rfid, draft.trim());
       if (onSave) onSave();
       setEditing(false);
+      if (res?.generatedPassword) {
+        window.alert(`Name updated. New password for ${draft.trim()}: ${res.generatedPassword}`);
+      }
     } catch (err) {
       console.error('Failed to rename student:', err);
     } finally {
@@ -415,9 +418,12 @@ const CardManagementPanel = () => {
     if (!editForm.uid || (!editForm.name && cards.find(c => c.uid === oldUid)?.role === 'STUDENT')) return;
     setActionLoading(`edit-${oldUid}`);
     try {
-      await updateCardDetails(oldUid, editForm);
+      const res = await updateCardDetails(oldUid, editForm);
       setEditingCard(null);
       await loadCards();
+      if (res?.generatedPassword) {
+        window.alert(`Card updated. New password for ${editForm.name || res.name}: ${res.generatedPassword}`);
+      }
     } catch (err) {
       setError(err.response?.data?.error || 'Update failed');
     } finally {
