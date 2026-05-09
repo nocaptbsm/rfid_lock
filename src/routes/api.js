@@ -51,8 +51,12 @@ router.post('/scan', scanLimiter, hmacValidator, async (req, res) => {
 
     const result = await attendanceService.processScan(uid, req.deviceId);
     
-    // If card was denied, return 403
+    // If card was denied, return 403 or 429
     if (!result.authorized) {
+      if (result.error === 'COOLDOWN') {
+        return res.status(429).json(result);
+      }
+      
       socketService.broadcast('SECURITY_ALERT', {
         type: result.error,
         uid: result.uid,

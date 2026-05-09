@@ -80,6 +80,33 @@ const attendanceService = {
       };
     }
 
+    // 2.5 Check cooldown (20 seconds) for authorized cards
+    const { data: lastSession } = await supabase
+      .from('sessions')
+      .select('entry_time, exit_time')
+      .eq('student_uid', normalizedUid)
+      .order('id', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (lastSession) {
+      const lastEntry = new Date(lastSession.entry_time).getTime();
+      const lastExit = lastSession.exit_time ? new Date(lastSession.exit_time).getTime() : 0;
+      const lastScanTime = Math.max(lastEntry, lastExit);
+      const nowTime = new Date(timestamp).getTime();
+
+      if (nowTime - lastScanTime < 20 * 1000) {
+        return {
+          authorized: false,
+          error: 'COOLDOWN',
+          uid: normalizedUid,
+          student_name: student?.name || null,
+          timestamp,
+          message: 'Please wait 20 seconds between scans'
+        };
+      }
+    }
+
     // 3. Check for an active session (authorized cards only)
     const { data: activeSession } = await supabase
       .from('sessions')
