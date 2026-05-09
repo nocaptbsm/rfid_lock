@@ -314,7 +314,26 @@ const attendanceService = {
       .is('exit_time', null);
 
     if (error) throw error;
-    return data;
+    
+    // Filter out sessions that have passed their 9 PM IST cutoff
+    const now = new Date();
+    const istOffset = 5.5 * 60 * 60 * 1000;
+    
+    const activeSessions = data.filter(session => {
+      const entryTime = new Date(session.entry_time);
+      const entryIST = new Date(entryTime.getTime() + istOffset);
+      const cutoffUTC = new Date(Date.UTC(
+        entryIST.getUTCFullYear(),
+        entryIST.getUTCMonth(),
+        entryIST.getUTCDate(),
+        15, 30, 0, 0
+      ));
+      
+      // Keep session only if we haven't reached the 9 PM cutoff yet
+      return now <= cutoffUTC;
+    });
+
+    return activeSessions;
   },
 
   getAllScans: async (limit = 200) => {
