@@ -22,6 +22,11 @@ app.get('/health', (req, res) => {
   res.json({ status: 'healthy', timestamp: new Date().toISOString() });
 });
 
+// Ping — lightweight keep-alive for uptime bots
+app.get('/ping', (req, res) => {
+  res.status(200).send('pong');
+});
+
 // 404 handler
 app.use((req, res) => {
   res.status(404).json({ error: 'Endpoint not found' });
