@@ -90,47 +90,73 @@ const attendanceService = {
       .maybeSingle();
 
     if (activeSession) {
-      // EXIT Logic: Close the active session
       const entryTime = new Date(activeSession.entry_time);
-      const exitTime = new Date(timestamp);
-      const durationMinutes = Math.round((exitTime - entryTime) / (1000 * 60));
+      const now = new Date(timestamp);
 
-      await supabase
-        .from('sessions')
-        .update({ 
-          exit_time: timestamp, 
-          duration_minutes: durationMinutes,
-          status: 'COMPLETED'
-        })
-        .eq('id', activeSession.id);
+      // Calculate 9 PM IST cutoff for the entry date
+      const istOffset = 5.5 * 60 * 60 * 1000;
+      const entryIST = new Date(entryTime.getTime() + istOffset);
+      const cutoffUTC = new Date(Date.UTC(
+        entryIST.getUTCFullYear(),
+        entryIST.getUTCMonth(),
+        entryIST.getUTCDate(),
+        15, 30, 0, 0
+      ));
 
-      return {
-        authorized: true,
-        event: 'EXIT',
-        student_name: student.name,
-        roll: student.roll_no,
-        timestamp,
-        duration: durationMinutes
-      };
-    } else {
-      // ENTRY Logic: Create a new session
-      await supabase
-        .from('sessions')
-        .insert({ 
-          student_uid: normalizedUid, 
-          entry_time: timestamp,
-          status: 'ACTIVE',
-          device_id: deviceId || null
-        });
+      if (now > cutoffUTC) {
+        // Stale session: auto-close it at 9 PM
+        const durationMinutes = Math.max(0, Math.round((cutoffUTC - entryTime) / 60000));
+        await supabase
+          .from('sessions')
+          .update({ 
+            exit_time: cutoffUTC.toISOString(), 
+            duration_minutes: durationMinutes,
+            status: 'AUTO_CLOSED'
+          })
+          .eq('id', activeSession.id);
+          
+        // Do NOT return EXIT. Fall through to ENTRY logic below to start a new session.
+      } else {
+        // Normal EXIT Logic: Close the active session
+        const durationMinutes = Math.round((now - entryTime) / 60000);
 
-      return {
-        authorized: true,
-        event: 'ENTRY',
-        student_name: student.name,
-        roll: student.roll_no,
-        timestamp
-      };
+        await supabase
+          .from('sessions')
+          .update({ 
+            exit_time: timestamp, 
+            duration_minutes: durationMinutes,
+            status: 'COMPLETED'
+          })
+          .eq('id', activeSession.id);
+
+        return {
+          authorized: true,
+          event: 'EXIT',
+          student_name: student.name,
+          roll: student.roll_no,
+          timestamp,
+          duration: durationMinutes
+        };
+      }
     }
+
+    // ENTRY Logic: Create a new session (Runs if no active session, or if previous session was stale)
+    await supabase
+      .from('sessions')
+      .insert({ 
+        student_uid: normalizedUid, 
+        entry_time: timestamp,
+        status: 'ACTIVE',
+        device_id: deviceId || null
+      });
+
+    return {
+      authorized: true,
+      event: 'ENTRY',
+      student_name: student.name,
+      roll: student.roll_no,
+      timestamp
+    };
   },
 
   // ─── Card Management ───────────────────────────────────────────
