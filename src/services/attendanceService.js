@@ -531,8 +531,22 @@ const attendanceService = {
       }
       
       let mins = s.duration_minutes || 0;
-      if (!s.exit_time) {
-         mins = Math.round((now - new Date(s.entry_time)) / 60000);
+      
+      const entryDate = new Date(s.entry_time);
+      const cutoff = new Date(entryDate);
+      cutoff.setHours(21, 0, 0, 0); // 9 PM cutoff
+      
+      if (s.exit_time) {
+        const exitDate = new Date(s.exit_time);
+        if (exitDate > cutoff) {
+          mins = Math.max(0, Math.round((cutoff - entryDate) / 60000));
+        }
+      } else {
+        if (now >= cutoff) {
+          mins = Math.max(0, Math.round((cutoff - entryDate) / 60000));
+        } else {
+          mins = Math.max(0, Math.round((now - entryDate) / 60000));
+        }
       }
       studentTotals[roll].totalMinutes += mins;
     });
