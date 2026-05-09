@@ -24,7 +24,10 @@ app.get('/health', (req, res) => {
 
 // Ping — lightweight keep-alive for uptime bots
 app.get('/ping', (req, res) => {
-  res.status(200).send('pong');
+  res.status(200).send('ok');
+});
+app.get('/api/ping', (req, res) => {
+  res.status(200).send('ok');
 });
 
 // 404 handler
