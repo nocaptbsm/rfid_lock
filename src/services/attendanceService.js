@@ -533,8 +533,18 @@ const attendanceService = {
       let mins = s.duration_minutes || 0;
       
       const entryDate = new Date(s.entry_time);
-      const cutoff = new Date(entryDate);
-      cutoff.setHours(21, 0, 0, 0); // 9 PM cutoff
+      
+      // Convert entry date to IST by adding 5.5 hours
+      const istOffset = 5.5 * 60 * 60 * 1000;
+      const entryIST = new Date(entryDate.getTime() + istOffset);
+      
+      // Create cutoff for that day at 15:30 UTC (which is 21:00 IST)
+      const cutoff = new Date(Date.UTC(
+        entryIST.getUTCFullYear(),
+        entryIST.getUTCMonth(),
+        entryIST.getUTCDate(),
+        15, 30, 0, 0
+      ));
       
       if (s.exit_time) {
         const exitDate = new Date(s.exit_time);
