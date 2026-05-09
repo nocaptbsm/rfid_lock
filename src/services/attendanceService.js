@@ -370,18 +370,18 @@ const attendanceService = {
 
     if (studentError) throw studentError;
 
-    // 2. Get last 7 days of sessions
+    // 2. Get last 30 days of sessions
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     
-    const lastWeek = new Date(today);
-    lastWeek.setDate(lastWeek.getDate() - 6); // 7 days including today
+    const last30Days = new Date(today);
+    last30Days.setDate(last30Days.getDate() - 29); // 30 days including today
 
     const { data: allSessions, error: sessionError } = await supabase
       .from('sessions')
       .select('*')
       .eq('student_uid', student.uid)
-      .gte('entry_time', lastWeek.toISOString())
+      .gte('entry_time', last30Days.toISOString())
       .order('entry_time', { ascending: false });
 
     if (sessionError) throw sessionError;
