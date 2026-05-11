@@ -4,7 +4,8 @@ import {
   Check, X, LogIn, LogOut, ChevronDown, ChevronUp,
   Download, RefreshCw, Loader2, AlertCircle, Wifi,
   Trash2, Shield, ShieldAlert, ShieldCheck, ShieldX,
-  CreditCard, Plus, Ban, CheckCircle2, Calendar
+  CreditCard, Plus, Ban, CheckCircle2, Calendar,
+  MessageSquarePlus
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion'; // eslint-disable-line no-unused-vars
 import { useRfid } from '@/context/RfidContext';
@@ -12,6 +13,7 @@ import api, { deleteStudentLogs, updateStudentName, fetchCards, suspendCard, act
 import ConfirmDeleteModal from '@/components/modals/ConfirmDeleteModal';
 import { useLeaderboard } from '@/hooks/useLeaderboard';
 import LeaderboardPanel from '@/components/panels/LeaderboardPanel';
+import FeedbackSection from '@/components/panels/FeedbackSection';
 import { getCutoffTime } from '@/utils/sessionUtils';
 
 /* ─── helpers ───────────────────────────────────────────────── */
@@ -895,6 +897,7 @@ const AdminDashboard = () => {
   const tabs = [
     { id: 'dashboard', label: 'Dashboard', icon: Activity },
     { id: 'security',  label: 'Security',  icon: Shield },
+    { id: 'feedback',  label: 'Feedback',  icon: MessageSquarePlus },
   ];
 
   return (
@@ -979,6 +982,12 @@ const AdminDashboard = () => {
             <SecurityAlertPanel logs={logs} />
           </motion.div>
         </div>
+      )}
+
+      {activeTab === 'feedback' && (
+        <motion.div variants={item}>
+          <FeedbackSection userRole="admin" />
+        </motion.div>
       )}
 
       <ConfirmDeleteModal 

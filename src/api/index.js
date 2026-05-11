@@ -9,9 +9,13 @@ const api = axios.create({
 api.interceptors.request.use((config) => {
   const user = localStorage.getItem('user');
   if (user) {
-    const { token } = JSON.parse(user);
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
+    const parsed = JSON.parse(user);
+    if (parsed.token) {
+      config.headers.Authorization = `Bearer ${parsed.token}`;
+    }
+    // Send student UID for feedback identification
+    if (parsed.uid) {
+      config.headers['X-Student-UID'] = parsed.uid;
     }
   }
   return config;
@@ -82,5 +86,15 @@ export const deleteCard = (uid) =>
 // ─── Security Log ───────────────────────────────────────────────────
 export const fetchSecurityLog = () =>
   api.get('/admin/security-log').then(res => res.data);
+
+// ─── Feedback ───────────────────────────────────────────────────
+export const submitFeedback = (message, role = 'student') =>
+  api.post('/feedback', { message, role }).then(res => res.data);
+
+export const fetchMyFeedbacks = () =>
+  api.get('/feedback/mine').then(res => res.data);
+
+export const fetchAllFeedbacks = () =>
+  api.get('/admin/feedbacks').then(res => res.data);
 
 export default api;

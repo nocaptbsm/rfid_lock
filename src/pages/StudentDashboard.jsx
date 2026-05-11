@@ -24,6 +24,7 @@ import { isSessionActive } from '@/utils/sessionUtils';
 import { useAuth } from '@/context/AuthContext';
 import { useLeaderboard } from '@/hooks/useLeaderboard';
 import LeaderboardPanel from '@/components/panels/LeaderboardPanel';
+import FeedbackSection from '@/components/panels/FeedbackSection';
 import { MOCK_STUDENT_DATA } from '@/utils/mockData';
 
 const fmtDuration = (mins) => {
@@ -291,6 +292,11 @@ const StudentDashboard = () => {
           <LeaderboardPanel leaderboard={leaderboard} loading={leaderLoading} currentRoll={user?.roll} />
         </motion.div>
       </div>
+
+      {/* Row 4: Feedback */}
+      <motion.div variants={item}>
+        <FeedbackSection userRole="student" />
+      </motion.div>
     </motion.div>
   );
 };
