@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { MessageSquarePlus, Send, Loader2, AlertCircle, CheckCircle2, Clock, ChevronDown, ChevronUp } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { submitFeedback, fetchMyFeedbacks } from '@/api';
+import { submitFeedback, fetchMyFeedbacks, fetchAllFeedbacks } from '@/api';
 
 const MAX_CHARS = 500;
 const MAX_PER_WEEK = 4;
@@ -274,6 +274,71 @@ const FeedbackSection = ({ userRole = 'student' }) => {
           </>
         )}
       </motion.div>
+    </div>
+  );
+};
+
+export const AllFeedbacksPanel = () => {
+  const [feedbacks, setFeedbacks] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const data = await fetchAllFeedbacks();
+        const studentFeedbacks = data.filter(f => f.user_role === 'student');
+        setFeedbacks(studentFeedbacks);
+      } catch (err) {
+        setError('Failed to load student feedbacks.');
+      } finally {
+        setLoading(false);
+      }
+    };
+    load();
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="glass-card rounded-2xl p-8 flex justify-center mt-8">
+        <Loader2 className="animate-spin text-primary" size={24} />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="glass-card rounded-2xl p-6 mt-8 flex items-center gap-3 text-rose-500">
+        <AlertCircle size={18} />
+        <span className="text-sm">{error}</span>
+      </div>
+    );
+  }
+
+  if (feedbacks.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className="glass-card rounded-2xl overflow-hidden mt-8">
+      <div className="px-6 py-4 border-b border-border/50 flex items-center gap-2">
+        <MessageSquarePlus size={18} className="text-primary" />
+        <h3 className="font-semibold text-foreground">Student Feedbacks</h3>
+      </div>
+      <div className="divide-y divide-border/50 max-h-[500px] overflow-y-auto">
+        {feedbacks.map((fb) => (
+          <div key={fb.id} className="p-6 hover:bg-secondary/20 transition-colors">
+            <div className="flex justify-between items-start gap-4 mb-2">
+              <span className="text-sm font-medium text-foreground">{fb.user_name || 'Student'}</span>
+              <span className="text-xs text-muted-foreground whitespace-nowrap flex items-center gap-1.5">
+                <Clock size={12} />
+                {timeAgo(fb.created_at)}
+              </span>
+            </div>
+            <p className="text-sm text-muted-foreground whitespace-pre-wrap">{fb.message}</p>
+          </div>
+        ))}
+      </div>
     </div>
   );
 };

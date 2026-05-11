@@ -23,7 +23,7 @@ export const useStudentLive = (roll) => {
     try {
       const result = await fetchStudentStats(roll);
 
-      // Apply 9 PM cutoff to all sessions
+      // Apply 10 PM cutoff to all sessions
       const allSessionsRaw = result.weeklySessions || result.todaySessions || [];
       const todaySessionsRaw = result.todaySessions || [];
       const allSessions = applySessionsCutoff(allSessionsRaw);
@@ -43,7 +43,7 @@ export const useStudentLive = (roll) => {
         });
         const totalMinutes = Math.min(1440, daySessions.reduce((acc, s) => {
           let mins = s.duration_minutes || 0;
-          // For sessions still open (before 9 PM cutoff today), calculate live duration
+          // For sessions still open (before 10 PM cutoff today), calculate live duration
           if (!s.exit_time && isSessionActive(s)) {
             const start = new Date(s.entry_time);
             const effectiveEnd = getEffectiveNow(s.entry_time);
@@ -64,7 +64,7 @@ export const useStudentLive = (roll) => {
       const weeklyAvgHours = Number((weeklyTotalMinutes / 60 / 7).toFixed(1));
 
       // Determine if student is truly "inside" — only if they have an active session
-      // that hasn't been auto-closed by the 9 PM cutoff
+      // that hasn't been auto-closed by the 10 PM cutoff
       const isInside = result.isCurrentlyInside && todaySessions.some(s => isSessionActive(s));
 
       setData({
@@ -163,7 +163,7 @@ export const useStudentLive = (roll) => {
     }
   }, [wsStatus, refresh]);
 
-  // Derived Stats — with 9 PM cutoff applied
+  // Derived Stats — with 10 PM cutoff applied
   const stats = {
     // Entry time = first session's entry (sessions are ordered newest-first from API)
     todayEntry: data.sessions.length > 0 
@@ -175,7 +175,7 @@ export const useStudentLive = (roll) => {
       : '--',
     totalMinutes: data.sessions.reduce((acc, s) => {
       let mins = s.duration_minutes || 0;
-      // For still-active sessions (before 9 PM), use live elapsed time
+      // For still-active sessions (before 10 PM), use live elapsed time
       if (!s.exit_time && isSessionActive(s)) {
         const start = new Date(s.entry_time);
         const effectiveEnd = getEffectiveNow(s.entry_time);

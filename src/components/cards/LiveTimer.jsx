@@ -19,7 +19,7 @@ const LiveTimer = ({ entryTime }) => {
 
       setElapsed(`${hours}h ${mins}m ${secs}s`);
 
-      // If past 9 PM, mark as capped and stop the timer
+      // If past 10 PM, mark as capped and stop the timer
       if (now >= cutoff) {
         setCapped(true);
       }

@@ -49,7 +49,7 @@ const StudentHistory = () => {
           }
            // Sort descending
            allSessions.sort((a, b) => new Date(b.entry_time) - new Date(a.entry_time));
-           // Apply 9 PM cutoff
+           // Apply 10 PM cutoff
            setHistory(applySessionsCutoff(allSessions));
         } catch (error) {
           console.error('Failed to fetch history:', error);
@@ -126,7 +126,7 @@ const StudentHistory = () => {
                           <span className="w-2 h-2 rounded-full bg-rose-400"></span>
                           {fmtTime(session.exit_time)}
                           {session._autoClosed && (
-                            <span className="text-xs text-amber-400 ml-1">(9 PM cutoff)</span>
+                            <span className="text-xs text-amber-400 ml-1">(10 PM cutoff)</span>
                           )}
                         </div>
                       ) : isSessionActive(session) ? (

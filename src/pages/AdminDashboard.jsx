@@ -13,7 +13,7 @@ import api, { deleteStudentLogs, updateStudentName, fetchCards, suspendCard, act
 import ConfirmDeleteModal from '@/components/modals/ConfirmDeleteModal';
 import { useLeaderboard } from '@/hooks/useLeaderboard';
 import LeaderboardPanel from '@/components/panels/LeaderboardPanel';
-import FeedbackSection from '@/components/panels/FeedbackSection';
+import FeedbackSection, { AllFeedbacksPanel } from '@/components/panels/FeedbackSection';
 import { getCutoffTime } from '@/utils/sessionUtils';
 
 /* ─── helpers ───────────────────────────────────────────────── */
@@ -68,13 +68,22 @@ const useLiveData = () => {
 };
 
 /**
- * Check if a live session is truly active (before 9 PM cutoff).
+ * Get status of a live session (active or inactive, and reason).
  * Live sessions from the admin endpoint have entry_time but no exit_time.
  */
-const isLiveSessionActive = (session) => {
-  if (!session || !session.entry_time) return false;
-  const cutoff = getCutoffTime(new Date(session.entry_time));
-  return new Date() < cutoff;
+const getLiveSessionStatus = (session) => {
+  if (!session || !session.entry_time) return { active: false, reason: 'unknown' };
+  const entry = new Date(session.entry_time);
+  const cutoff = getCutoffTime(entry);
+  const now = new Date();
+  
+  if (now >= cutoff) return { active: false, reason: 'auto-closed 10 PM' };
+  
+  // 5-hour cap rule (300 mins)
+  const elapsedMinutes = (now - entry) / 60000;
+  if (elapsedMinutes > 300) return { active: false, reason: 'capped at 5 hrs' };
+
+  return { active: true, reason: null };
 };
 
 /* ─── Stat card ─────────────────────────────────────────────── */
@@ -158,8 +167,8 @@ const RenameCell = ({ rfid, fallback, onSave }) => {
 
 /* ─── Active sessions panel ─────────────────────────────────── */
 const LiveSessionsPanel = ({ live, loading, onDeleteStudent, onRefresh }) => {
-  const activeSessions = live.filter(s => isLiveSessionActive(s));
-  const autoClosedSessions = live.filter(s => !isLiveSessionActive(s));
+  const activeSessions = live.filter(s => getLiveSessionStatus(s).active);
+  const inactiveSessions = live.filter(s => !getLiveSessionStatus(s).active);
 
   return (
     <div className="glass-card rounded-2xl overflow-hidden">
@@ -168,7 +177,7 @@ const LiveSessionsPanel = ({ live, loading, onDeleteStudent, onRefresh }) => {
         <h2 className="text-base font-semibold">Live Sessions</h2>
         <span className="ml-auto text-xs text-muted-foreground">
           {activeSessions.length} active
-          {autoClosedSessions.length > 0 && ` • ${autoClosedSessions.length} auto-closed at 9 PM`}
+          {inactiveSessions.length > 0 && ` • ${inactiveSessions.length} inactive (auto-closed or capped)`}
         </span>
       </div>
       {loading ? (
@@ -183,7 +192,8 @@ const LiveSessionsPanel = ({ live, loading, onDeleteStudent, onRefresh }) => {
             const uid  = s.students?.uid  || '—';
             const name = s.students?.name || uid;
             const roll = s.students?.roll_no || '';
-            const active = isLiveSessionActive(s);
+            const statusInfo = getLiveSessionStatus(s);
+            const active = statusInfo.active;
             return (
               <div key={s.id} className={cn(
                 "flex items-center gap-4 px-6 py-3 hover:bg-secondary/20 transition-colors group",
@@ -199,7 +209,7 @@ const LiveSessionsPanel = ({ live, loading, onDeleteStudent, onRefresh }) => {
                   <RenameCell rfid={uid} fallback={name} onSave={onRefresh} />
                   <p className="text-xs text-muted-foreground">
                     {roll} • entered {fmtTime(s.entry_time)}
-                    {!active && <span className="text-amber-500 ml-1">• auto-closed 9 PM</span>}
+                    {!active && <span className="text-amber-500 ml-1">• {statusInfo.reason}</span>}
                   </p>
                 </div>
                 <div className="flex items-center gap-3">
@@ -987,6 +997,7 @@ const AdminDashboard = () => {
       {activeTab === 'feedback' && (
         <motion.div variants={item}>
           <FeedbackSection userRole="admin" />
+          <AllFeedbacksPanel />
         </motion.div>
       )}
 
