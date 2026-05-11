@@ -120,18 +120,18 @@ const attendanceService = {
       const entryTime = new Date(activeSession.entry_time);
       const now = new Date(timestamp);
 
-      // Calculate 9 PM IST cutoff for the entry date
+      // Calculate 10 PM IST cutoff for the entry date
       const istOffset = 5.5 * 60 * 60 * 1000;
       const entryIST = new Date(entryTime.getTime() + istOffset);
       const cutoffUTC = new Date(Date.UTC(
         entryIST.getUTCFullYear(),
         entryIST.getUTCMonth(),
         entryIST.getUTCDate(),
-        15, 30, 0, 0
+        16, 30, 0, 0
       ));
 
       if (now > cutoffUTC) {
-        // Stale session: auto-close it at 9 PM
+        // Stale session: auto-close it at 10 PM
         const durationMinutes = Math.max(0, Math.round((cutoffUTC - entryTime) / 60000));
         await supabase
           .from('sessions')
@@ -342,7 +342,7 @@ const attendanceService = {
 
     if (error) throw error;
     
-    // Filter out sessions that have passed their 9 PM IST cutoff
+    // Filter out sessions that have passed their 10 PM IST cutoff
     const now = new Date();
     const istOffset = 5.5 * 60 * 60 * 1000;
     
@@ -353,10 +353,10 @@ const attendanceService = {
         entryIST.getUTCFullYear(),
         entryIST.getUTCMonth(),
         entryIST.getUTCDate(),
-        15, 30, 0, 0
+        16, 30, 0, 0
       ));
       
-      // Keep session only if we haven't reached the 9 PM cutoff yet
+      // Keep session only if we haven't reached the 10 PM cutoff yet
       return now <= cutoffUTC;
     });
 
@@ -610,12 +610,12 @@ const attendanceService = {
       const istOffset = 5.5 * 60 * 60 * 1000;
       const entryIST = new Date(entryDate.getTime() + istOffset);
       
-      // Create cutoff for that day at 15:30 UTC (which is 21:00 IST)
+      // Create cutoff for that day at 16:30 UTC (which is 22:00 IST)
       const cutoff = new Date(Date.UTC(
         entryIST.getUTCFullYear(),
         entryIST.getUTCMonth(),
         entryIST.getUTCDate(),
-        15, 30, 0, 0
+        16, 30, 0, 0
       ));
       
       if (s.exit_time) {
@@ -630,6 +630,12 @@ const attendanceService = {
           mins = Math.max(0, Math.round((now - entryDate) / 60000));
         }
       }
+      
+      // Enforce 5-hour (300 mins) cap
+      if (mins > 300) {
+        mins = 300;
+      }
+      
       studentTotals[roll].totalMinutes += mins;
     });
 
