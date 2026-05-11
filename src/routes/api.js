@@ -1,9 +1,13 @@
 const express = require('express');
 const router = express.Router();
 const rateLimit = require('express-rate-limit');
+const jwt = require('jsonwebtoken');
 const attendanceService = require('../services/attendanceService');
 const { apiKeyValidator, hmacValidator, requireAdmin, adminLogin } = require('../middleware/auth');
 const socketService = require('../services/socketService');
+const supabase = require('../config/supabase');
+
+const JWT_SECRET = process.env.JWT_SECRET || 'change-me-in-production';
 
 // ─── Rate Limiters ───────────────────────────────────────────────────
 
@@ -325,6 +329,175 @@ router.get('/leaderboard', async (req, res) => {
     const leaderboard = await attendanceService.getLeaderboard();
     res.json(leaderboard);
   } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+
+// ═══════════════════════════════════════════════════════════════════════
+// FEEDBACK ENDPOINTS
+// ═══════════════════════════════════════════════════════════════════════
+
+/**
+ * POST /feedback — Submit feedback (any authenticated user)
+ * Body: { message: string, role: 'student'|'admin' }
+ * Identifies user from JWT (admin) or X-Student-UID header (student)
+ */
+router.post('/feedback', async (req, res) => {
+  try {
+    const { message, role } = req.body;
+
+    if (!message || !message.trim()) {
+      return res.status(400).json({ error: 'Feedback message is required' });
+    }
+    if (message.trim().length > 500) {
+      return res.status(400).json({ error: 'Feedback must be 500 characters or less' });
+    }
+
+    // Determine who's submitting
+    let userUid = null;
+    let userName = 'Unknown';
+    let userRole = role || 'student';
+
+    // Try JWT first (admin users)
+    const auth = req.headers.authorization;
+    if (auth && auth.startsWith('Bearer ')) {
+      try {
+        const payload = jwt.verify(auth.slice(7), JWT_SECRET);
+        if (payload.role === 'admin') {
+          userUid = 'admin';
+          userName = payload.sub || 'Admin';
+          userRole = 'admin';
+        }
+      } catch (e) {
+        // Token invalid — not admin, check student uid
+      }
+    }
+
+    // For students, extract uid from custom header
+    if (!userUid) {
+      const studentUid = req.headers['x-student-uid'];
+      if (studentUid) {
+        userUid = studentUid.toUpperCase();
+        // Look up student name
+        const { data: student } = await supabase
+          .from('students')
+          .select('name')
+          .eq('uid', userUid)
+          .single();
+        userName = student?.name || 'Student';
+        userRole = 'student';
+      }
+    }
+
+    if (!userUid) {
+      return res.status(401).json({ error: 'Unable to identify user. Please log in again.' });
+    }
+
+    // Check weekly limit (4 per week per user)
+    const weekStart = new Date();
+    weekStart.setDate(weekStart.getDate() - weekStart.getDay()); // Sunday
+    weekStart.setHours(0, 0, 0, 0);
+
+    const { count, error: countError } = await supabase
+      .from('feedbacks')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_uid', userUid)
+      .gte('created_at', weekStart.toISOString());
+
+    if (countError) throw countError;
+
+    if (count >= 4) {
+      return res.status(429).json({
+        error: 'Weekly feedback limit reached (4 per week). Please try again next week.'
+      });
+    }
+
+    // Insert feedback
+    const { data, error } = await supabase
+      .from('feedbacks')
+      .insert({
+        user_uid: userUid,
+        user_name: userName,
+        user_role: userRole,
+        message: message.trim(),
+        status: 'pending'
+      })
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    res.status(201).json(data);
+  } catch (error) {
+    console.error('[FEEDBACK] Submit error:', error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * GET /feedback/mine — Get feedbacks for the current user
+ * Uses JWT (admin) or X-Student-UID header (student)
+ */
+router.get('/feedback/mine', async (req, res) => {
+  try {
+    let userUid = null;
+
+    // Try JWT first (admin)
+    const auth = req.headers.authorization;
+    if (auth && auth.startsWith('Bearer ')) {
+      try {
+        const payload = jwt.verify(auth.slice(7), JWT_SECRET);
+        if (payload.role === 'admin') {
+          userUid = 'admin';
+        }
+      } catch (e) {
+        // Not admin
+      }
+    }
+
+    // Student uid from header
+    if (!userUid) {
+      const studentUid = req.headers['x-student-uid'];
+      if (studentUid) {
+        userUid = studentUid.toUpperCase();
+      }
+    }
+
+    if (!userUid) {
+      return res.status(401).json({ error: 'Unable to identify user' });
+    }
+
+    const { data, error } = await supabase
+      .from('feedbacks')
+      .select('*')
+      .eq('user_uid', userUid)
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+
+    res.json(data || []);
+  } catch (error) {
+    console.error('[FEEDBACK] Fetch error:', error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * GET /admin/feedbacks — Get ALL feedbacks (admin only)
+ */
+router.get('/admin/feedbacks', requireAdmin, async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('feedbacks')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+
+    res.json(data || []);
+  } catch (error) {
+    console.error('[FEEDBACK] Admin fetch error:', error.message);
     res.status(500).json({ error: error.message });
   }
 });
