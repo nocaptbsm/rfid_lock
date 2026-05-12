@@ -960,7 +960,7 @@ const AdminDashboard = () => {
         <>
           {/* Stats */}
           <motion.div variants={item} className="grid grid-cols-1 sm:grid-cols-3 gap-5">
-            <StatCard title="Currently Inside"  value={live.filter(s => isLiveSessionActive(s)).length}   icon={Users}    color="primary" loading={loading} />
+            <StatCard title="Currently Inside"  value={live.filter(s => getLiveSessionStatus(s).active).length}   icon={Users}    color="primary" loading={loading} />
             <StatCard title="Total Entries Today" value={uniqueEntriesToday} icon={LogIn}    color="emerald" loading={loading} />
             <StatCard title="Daily Avg Entries"   value={dailyAvg}   icon={Activity} color="amber"   loading={loading} />
           </motion.div>
