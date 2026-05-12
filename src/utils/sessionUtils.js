@@ -73,7 +73,10 @@ export const applySessionCutoff = (session) => {
   const isAutoClosed = autoClosed || session.status === 'AUTO_CLOSED';
   const isLive = !session.exit_time;
 
-  if ((isLive || isAutoClosed) && durationMinutes >= MAX_DURATION_MINUTES) {
+  const FEATURE_START_DATE = new Date('2026-05-11T00:00:00Z');
+  const isAfterFeatureLaunch = entry >= FEATURE_START_DATE;
+
+  if (isAfterFeatureLaunch && (isLive || isAutoClosed) && durationMinutes >= MAX_DURATION_MINUTES) {
     durationMinutes = MAX_DURATION_MINUTES;
     durationCapped = true;
   }
