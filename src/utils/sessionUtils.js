@@ -65,7 +65,15 @@ export const applySessionCutoff = (session) => {
   }
 
   let durationCapped = false;
-  if (durationMinutes >= MAX_DURATION_MINUTES) {
+  
+  // A session is subject to the 5-hour penalty IF:
+  // 1. It is currently live and has exceeded 5 hours.
+  // 2. OR it was auto-closed (either by frontend logic just now, or by backend status).
+  // If it has a legitimate exit_time, NO PENALTY applies.
+  const isAutoClosed = autoClosed || session.status === 'AUTO_CLOSED';
+  const isLive = !session.exit_time;
+
+  if ((isLive || isAutoClosed) && durationMinutes >= MAX_DURATION_MINUTES) {
     durationMinutes = MAX_DURATION_MINUTES - PENALTY_MINUTES;
     durationCapped = true;
   }
