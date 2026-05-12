@@ -633,9 +633,11 @@ const attendanceService = {
       
       // A session is penalized ONLY if it was auto-closed or never exited
       const isAutoClosed = s.status === 'AUTO_CLOSED' || !s.exit_time;
+      const FEATURE_START_DATE = new Date('2026-05-11T00:00:00Z');
+      const isAfterFeatureLaunch = entryDate >= FEATURE_START_DATE;
       
       // Enforce 5-hour (300 mins) limit
-      if (isAutoClosed && mins >= 300) {
+      if (isAfterFeatureLaunch && isAutoClosed && mins >= 300) {
         mins = 300; // 5 hours
       }
       
