@@ -262,7 +262,7 @@ const StudentDashboard = () => {
                         ) : (
                           <span className="text-amber-500 text-xs font-medium">
                             {fmtDuration(session.duration_minutes)}
-                            {session._durationCapped && <span className="text-amber-500 ml-1 text-xs">(capped)</span>}
+                            {session._durationCapped && <span className="text-rose-500 ml-1 text-xs">(penalty applied)</span>}
                             {session._autoClosed && <span className="text-amber-500 ml-1 text-xs">(auto-closed)</span>}
                           </span>
                         )}

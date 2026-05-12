@@ -81,7 +81,7 @@ const getLiveSessionStatus = (session) => {
   
   // 5-hour cap rule (300 mins)
   const elapsedMinutes = (now - entry) / 60000;
-  if (elapsedMinutes > 300) return { active: false, reason: 'capped at 5 hrs' };
+  if (elapsedMinutes > 300) return { active: false, reason: '5h limit: 2h penalty' };
 
   return { active: true, reason: null };
 };
@@ -177,7 +177,7 @@ const LiveSessionsPanel = ({ live, loading, onDeleteStudent, onRefresh }) => {
         <h2 className="text-base font-semibold">Live Sessions</h2>
         <span className="ml-auto text-xs text-muted-foreground">
           {activeSessions.length} active
-          {inactiveSessions.length > 0 && ` • ${inactiveSessions.length} inactive (auto-closed or capped)`}
+          {inactiveSessions.length > 0 && ` • ${inactiveSessions.length} inactive (auto-closed or penalized)`}
         </span>
       </div>
       {loading ? (

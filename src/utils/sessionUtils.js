@@ -10,6 +10,7 @@
 
 const CUTOFF_HOUR = 22; // 10 PM
 export const MAX_DURATION_MINUTES = 300; // 5 hours
+export const PENALTY_MINUTES = 120; // 2 hour penalty if limit reached
 
 /**
  * Returns a 10 PM Date object for the same calendar day as the given date.
@@ -64,8 +65,8 @@ export const applySessionCutoff = (session) => {
   }
 
   let durationCapped = false;
-  if (durationMinutes > MAX_DURATION_MINUTES) {
-    durationMinutes = MAX_DURATION_MINUTES;
+  if (durationMinutes >= MAX_DURATION_MINUTES) {
+    durationMinutes = MAX_DURATION_MINUTES - PENALTY_MINUTES;
     durationCapped = true;
   }
 
