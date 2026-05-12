@@ -74,7 +74,7 @@ export const applySessionCutoff = (session) => {
   const isLive = !session.exit_time;
 
   if ((isLive || isAutoClosed) && durationMinutes >= MAX_DURATION_MINUTES) {
-    durationMinutes = MAX_DURATION_MINUTES - PENALTY_MINUTES;
+    durationMinutes = MAX_DURATION_MINUTES;
     durationCapped = true;
   }
 
