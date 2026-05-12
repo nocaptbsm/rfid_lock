@@ -631,9 +631,9 @@ const attendanceService = {
         }
       }
       
-      // Enforce 5-hour (300 mins) cap
-      if (mins > 300) {
-        mins = 300;
+      // Enforce 5-hour (300 mins) limit with 2-hour penalty (120 mins)
+      if (mins >= 300) {
+        mins = 300 - 120; // 180 minutes
       }
       
       studentTotals[roll].totalMinutes += mins;
