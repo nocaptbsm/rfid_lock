@@ -631,8 +631,11 @@ const attendanceService = {
         }
       }
       
+      // A session is penalized ONLY if it was auto-closed or never exited
+      const isAutoClosed = s.status === 'AUTO_CLOSED' || !s.exit_time;
+      
       // Enforce 5-hour (300 mins) limit with 2-hour penalty (120 mins)
-      if (mins >= 300) {
+      if (isAutoClosed && mins >= 300) {
         mins = 300 - 120; // 180 minutes
       }
       
