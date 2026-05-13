@@ -4,13 +4,9 @@
  * Business rule: All sessions close at 10 PM (22:00) on the day they started.
  * If a session has no exit_time and the current time is past 10 PM,
  * treat the session as closed at 10 PM.
- *
- * Secondary rule: Max session duration is 5 hours (300 minutes).
  */
 
 const CUTOFF_HOUR = 22; // 10 PM
-export const MAX_DURATION_MINUTES = 300; // 5 hours
-export const PENALTY_MINUTES = 120; // 2 hour penalty if limit reached
 
 /**
  * Returns a 10 PM Date object for the same calendar day as the given date.
@@ -24,14 +20,13 @@ export const getCutoffTime = (date) => {
 /**
  * Given a session object { entry_time, exit_time, duration_minutes, ... },
  * returns a new session with exit_time and duration_minutes adjusted
- * according to the 10 PM cutoff rule and 5-hour cap.
+ * according to the 10 PM cutoff rule.
  *
  * Rules:
  * - If exit_time exists and is before 10 PM → keep as-is
  * - If exit_time exists but is after 10 PM → cap at 10 PM, recalculate duration
  * - If no exit_time and now is past 10 PM on that day → set exit to 10 PM, mark auto-closed
  * - If no exit_time and now is before 10 PM on that day → keep open (active session)
- * - Final duration is capped at 5 hours (300 mins)
  */
 export const applySessionCutoff = (session) => {
   if (!session || !session.entry_time) return session;
@@ -64,29 +59,11 @@ export const applySessionCutoff = (session) => {
     durationMinutes = Math.max(0, Math.round((exitTime - entry) / 60000));
   }
 
-  let durationCapped = false;
-  
-  // A session is subject to the 5-hour penalty IF:
-  // 1. It is currently live and has exceeded 5 hours.
-  // 2. OR it was auto-closed (either by frontend logic just now, or by backend status).
-  // If it has a legitimate exit_time, NO PENALTY applies.
-  const isAutoClosed = autoClosed || session.status === 'AUTO_CLOSED';
-  const isLive = !session.exit_time;
-
-  const FEATURE_START_DATE = new Date('2026-05-11T00:00:00Z');
-  const isAfterFeatureLaunch = entry >= FEATURE_START_DATE;
-
-  if (isAfterFeatureLaunch && (isLive || isAutoClosed) && durationMinutes >= MAX_DURATION_MINUTES) {
-    durationMinutes = MAX_DURATION_MINUTES;
-    durationCapped = true;
-  }
-
   return {
     ...session,
     exit_time: exitTime ? exitTime.toISOString() : null,
     duration_minutes: durationMinutes,
     _autoClosed: autoClosed,
-    _durationCapped: durationCapped,
   };
 };
 

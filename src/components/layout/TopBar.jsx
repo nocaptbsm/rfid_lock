@@ -11,7 +11,9 @@ import {
   History, 
   ShieldCheck,
   Menu,
-  X
+  X,
+  Maximize,
+  Minimize
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { cn } from '@/utils/cn';
@@ -19,6 +21,27 @@ import { cn } from '@/utils/cn';
 const TopBar = () => {
   const { user, logout, isAdmin } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  React.useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+  }, []);
+
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen().catch(err => {
+        console.error(`Error attempting to enable full-screen mode: ${err.message}`);
+      });
+    } else {
+      if (document.exitFullscreen) {
+        document.exitFullscreen();
+      }
+    }
+  };
 
   const studentLinks = [
     { name: 'Dashboard', icon: LayoutDashboard, path: `/student/${user?.roll}` },
@@ -89,6 +112,13 @@ const TopBar = () => {
           <div className="h-6 w-px bg-border mx-1 hidden sm:block"></div>
 
           <div className="flex items-center gap-2 sm:gap-3">
+            <button
+              onClick={toggleFullscreen}
+              className="p-2 text-muted-foreground hover:bg-secondary rounded-full transition-colors hidden sm:block"
+              title={isFullscreen ? "Exit Fullscreen" : "Enter Fullscreen"}
+            >
+              {isFullscreen ? <Minimize size={18} /> : <Maximize size={18} />}
+            </button>
             <div className="w-8 h-8 bg-secondary rounded-full flex items-center justify-center text-muted-foreground border border-border">
               <User size={16} />
             </div>
