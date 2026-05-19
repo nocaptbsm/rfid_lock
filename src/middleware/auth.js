@@ -123,4 +123,26 @@ const adminLogin = async (req, res) => {
   res.json({ token, role: 'admin', expiresIn: JWT_EXPIRY });
 };
 
-module.exports = { apiKeyValidator, hmacValidator, requireAdmin, adminLogin };
+
+// ─── Student JWT / UID Middleware ─────────────────────────────────────
+// Groups are student-only. A student is identified by their JWT token
+// (issued at /student/login) which carries { role: 'student', uid, roll }.
+const requireStudent = (req, res, next) => {
+  const auth = req.headers.authorization;
+  if (!auth || !auth.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'UNAUTHORIZED', message: 'Student login required' });
+  }
+  try {
+    const token = auth.slice(7);
+    const payload = jwt.verify(token, JWT_SECRET);
+    if (payload.role !== 'student') {
+      return res.status(403).json({ error: 'FORBIDDEN', message: 'Student access required' });
+    }
+    req.student = payload; // { uid, roll, name }
+    next();
+  } catch (err) {
+    return res.status(401).json({ error: 'INVALID_TOKEN', message: 'Token expired or invalid' });
+  }
+};
+
+module.exports = { apiKeyValidator, hmacValidator, requireAdmin, adminLogin, requireStudent };
