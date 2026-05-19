@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { ThemeProvider } from './context/ThemeContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { RfidProvider } from './context/RfidContext';
+import { GroupProvider } from './context/GroupContext';
 import TopBar from './components/layout/TopBar';
 
 // Lazy load pages for performance
@@ -12,6 +13,7 @@ const StudentDashboard = React.lazy(() => import('./pages/StudentDashboard'));
 const StudentHistory = React.lazy(() => import('./pages/StudentHistory'));
 const AdminDashboard   = React.lazy(() => import('./pages/AdminDashboard'));
 const AdminReports = React.lazy(() => import('./pages/AdminReports'));
+const StudentGroupDashboard = React.lazy(() => import('./pages/StudentGroupDashboard'));
 
 const ProtectedRoute = ({ children, adminOnly = false }) => {
   const { user, isAdmin } = useAuth();
@@ -42,60 +44,71 @@ function App() {
     <ThemeProvider>
       <AuthProvider>
         <RfidProvider>
-          <Router>
-            <React.Suspense fallback={
-              <div className="h-screen flex items-center justify-center bg-background">
-                <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
-              </div>
-            }>
-              <Routes>
-                {/* Public Routes */}
-                <Route path="/"           element={<StudentLogin />} />
-                <Route path="/admin-login" element={<AdminLogin />} />
+          <GroupProvider>
+            <Router>
+              <React.Suspense fallback={
+                <div className="h-screen flex items-center justify-center bg-background">
+                  <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+                </div>
+              }>
+                <Routes>
+                  {/* Public Routes */}
+                  <Route path="/"           element={<StudentLogin />} />
+                  <Route path="/admin-login" element={<AdminLogin />} />
 
-                {/* Student Routes */}
-                <Route
-                  path="/student/:roll"
-                  element={
-                    <ProtectedRoute>
-                      <DashboardLayout><StudentDashboard /></DashboardLayout>
-                    </ProtectedRoute>
-                  }
-                />
-                
-                <Route
-                  path="/student/:roll/history"
-                  element={
-                    <ProtectedRoute>
-                      <DashboardLayout><StudentHistory /></DashboardLayout>
-                    </ProtectedRoute>
-                  }
-                />
+                  {/* Student Routes */}
+                  <Route
+                    path="/student/:roll"
+                    element={
+                      <ProtectedRoute>
+                        <DashboardLayout><StudentDashboard /></DashboardLayout>
+                      </ProtectedRoute>
+                    }
+                  />
+                  
+                  <Route
+                    path="/student/:roll/history"
+                    element={
+                      <ProtectedRoute>
+                        <DashboardLayout><StudentHistory /></DashboardLayout>
+                      </ProtectedRoute>
+                    }
+                  />
 
-                {/* Admin Routes */}
-                <Route
-                  path="/admin"
-                  element={
-                    <ProtectedRoute adminOnly>
-                      <DashboardLayout><AdminDashboard /></DashboardLayout>
-                    </ProtectedRoute>
-                  }
-                />
+                  <Route
+                    path="/student/:roll/group"
+                    element={
+                      <ProtectedRoute>
+                        <DashboardLayout><StudentGroupDashboard /></DashboardLayout>
+                      </ProtectedRoute>
+                    }
+                  />
 
-                <Route
-                  path="/admin/reports"
-                  element={
-                    <ProtectedRoute adminOnly>
-                      <DashboardLayout><AdminReports /></DashboardLayout>
-                    </ProtectedRoute>
-                  }
-                />
+                  {/* Admin Routes */}
+                  <Route
+                    path="/admin"
+                    element={
+                      <ProtectedRoute adminOnly>
+                        <DashboardLayout><AdminDashboard /></DashboardLayout>
+                      </ProtectedRoute>
+                    }
+                  />
 
-                {/* Fallback */}
-                <Route path="*" element={<Navigate to="/" replace />} />
-              </Routes>
-            </React.Suspense>
-          </Router>
+                  <Route
+                    path="/admin/reports"
+                    element={
+                      <ProtectedRoute adminOnly>
+                        <DashboardLayout><AdminReports /></DashboardLayout>
+                      </ProtectedRoute>
+                    }
+                  />
+
+                  {/* Fallback */}
+                  <Route path="*" element={<Navigate to="/" replace />} />
+                </Routes>
+              </React.Suspense>
+            </Router>
+          </GroupProvider>
         </RfidProvider>
       </AuthProvider>
     </ThemeProvider>
@@ -103,3 +116,4 @@ function App() {
 }
 
 export default App;
+

@@ -10,7 +10,8 @@ import {
   TrendingUp,
   Award,
   RefreshCw,
-  AlertCircle
+  AlertCircle,
+  Users
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import StatCard from '@/components/cards/StatCard';
@@ -25,6 +26,8 @@ import { useAuth } from '@/context/AuthContext';
 import { useLeaderboard } from '@/hooks/useLeaderboard';
 import LeaderboardPanel from '@/components/panels/LeaderboardPanel';
 import FeedbackSection from '@/components/panels/FeedbackSection';
+import GroupNotifications from '@/components/panels/GroupNotifications';
+import { useGroup } from '@/context/GroupContext';
 import { MOCK_STUDENT_DATA } from '@/utils/mockData';
 
 const fmtDuration = (mins) => {
@@ -69,6 +72,7 @@ const StudentDashboard = () => {
   } = useStudentLive(targetRoll);
 
   const { leaderboard, loading: leaderLoading } = useLeaderboard();
+  const { pendingInvites } = useGroup();
 
   // Extract user's rank from leaderboard
   const userRank = leaderboard?.find(li => li.roll === user?.roll)?.rank;
@@ -112,7 +116,18 @@ const StudentDashboard = () => {
             Welcome back, {profile?.name || user?.roll}! Tracking your RFID activity.
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
+          <Link 
+            to={`/student/${targetRoll}/group`} 
+            className="relative flex items-center gap-2 bg-primary/10 text-primary hover:bg-primary hover:text-white px-4 py-2 rounded-full text-sm font-medium transition-colors border border-primary/20"
+          >
+            <Users size={16} /> Group System
+            {pendingInvites?.length > 0 && (
+              <span className="absolute -top-1 -right-1 w-4 h-4 bg-rose-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center animate-pulse">
+                {pendingInvites.length}
+              </span>
+            )}
+          </Link>
           <ConnectionBadge status={wsStatus} />
           <StatusBadge status={inside ? 'Inside' : 'Outside'} />
           <div className="text-xs text-muted-foreground bg-secondary px-3 py-1 rounded-full flex items-center gap-1.5">
@@ -134,6 +149,11 @@ const StudentDashboard = () => {
           <span>{error}</span>
         </div>
       )}
+
+      {/* Notifications Row */}
+      <motion.div variants={item}>
+        <GroupNotifications />
+      </motion.div>
 
       {/* Row 1: Today's Stats */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">

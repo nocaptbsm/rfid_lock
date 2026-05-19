@@ -69,3 +69,27 @@ export const MOCK_ADMIN_DATA = {
     { rank: 3, rfid: 'E2A5C6B8', totalHours: '112h', trend: 10 },
   ]
 };
+
+export const MOCK_GROUP_DATA = {
+  id: 'g-123',
+  name: 'Night Owls',
+  targetHours: 5,
+  penaltyPoints: 20,
+  createdBy: '21CS042',
+  rank: 1,
+  totalPoints: 1250,
+  streak: 5,
+  members: [
+    { roll: '21CS042', name: 'Abhishek Ranjan', points: 450, todayHours: 6, status: 'Completed' },
+    { roll: '21CS011', name: 'Rahul Sharma', points: 300, todayHours: 3, status: 'In Progress' },
+    { roll: '21CS088', name: 'Priya Singh', points: 500, todayHours: 5.5, status: 'Completed' },
+  ],
+  leaderboard: [
+    { rank: 1, name: 'Night Owls', points: 1250 },
+    { rank: 2, name: 'Early Birds', points: 1100 },
+    { rank: 3, name: 'Procrastinators', points: 950 },
+  ],
+  pendingInvites: [
+    { id: 'inv-1', groupName: 'Hackathon Squad', senderName: 'Amit Kumar', targetHours: 8 }
+  ]
+};
