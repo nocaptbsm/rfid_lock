@@ -59,9 +59,9 @@ export const GroupProvider = ({ children }) => {
       parseFloat(targetHours),
       parseFloat(penaltyPoints),
     );
-    await refresh();
+    // Fire refresh in background — don't block the modal from closing
+    refresh().catch(() => {});
     return newGroup;
-    // Note: errors propagate up to the modal's try/catch intentionally
   }, [refresh]);
 
   const inviteMember = useCallback(async (receiverRoll) => {
@@ -84,7 +84,7 @@ export const GroupProvider = ({ children }) => {
   const respondToInvite = useCallback(async (inviteId, accept) => {
     try {
       await respondToGroupInvite(inviteId, accept ? 'ACCEPT' : 'REJECT');
-      await refresh();
+      refresh().catch(() => {});
     } catch (err) {
       console.error('[GroupContext] respondToInvite:', err.message);
     }
@@ -92,12 +92,12 @@ export const GroupProvider = ({ children }) => {
 
   const leaveGroup = useCallback(async () => {
     await apiLeaveGroup();
-    await refresh();
+    refresh().catch(() => {});
   }, [refresh]);
 
   const transferAdmin = useCallback(async (newAdminUid) => {
     await transferGroupAdmin(newAdminUid);
-    await refresh();
+    refresh().catch(() => {});
   }, [refresh]);
 
   // ── Computed helpers ──────────────────────────────────────────────────────
