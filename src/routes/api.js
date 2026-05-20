@@ -537,21 +537,45 @@ router.get('/groups/me', requireStudent, async (req, res) => {
 
     if (gErr) throw gErr;
 
-    // Fetch all members with their today's score
+    // Fetch all members
     const today = new Date().toISOString().split('T')[0];
+    const cutoff = new Date(`${today}T22:00:00`);
+
     const { data: members } = await supabase
       .from('group_members')
       .select('student_id, role, joined_at, students(name, roll_no)')
       .eq('group_id', group.id);
 
+    // G-7: Compute live today hours from scans (group_daily_scores only writes at 10 PM)
+    const memberUids = (members || []).map(m => m.student_id);
+    const { data: allScans } = await supabase
+      .from('scans')
+      .select('uid, entry_time, exit_time')
+      .in('uid', memberUids)
+      .gte('entry_time', `${today}T00:00:00`)
+      .lt('entry_time', `${today}T23:59:59`);
+
+    // Also read finalised scores (written at 10 PM) for points
     const { data: scores } = await supabase
       .from('group_daily_scores')
-      .select('user_id, actual_hours, earned_points, penalty_points, final_points')
+      .select('user_id, final_points, penalty_points')
       .eq('group_id', group.id)
       .eq('date', today);
 
     const scoreMap = {};
     (scores || []).forEach(s => { scoreMap[s.user_id] = s; });
+
+    // Build live hours map
+    const now = new Date();
+    const liveHoursMap = {};
+    for (const scan of allScans || []) {
+      const entry = new Date(scan.entry_time);
+      const exit = scan.exit_time ? new Date(scan.exit_time) : now;
+      const effectiveExit = exit > cutoff ? cutoff : exit;
+      if (effectiveExit > entry) {
+        liveHoursMap[scan.uid] = (liveHoursMap[scan.uid] || 0) + (effectiveExit - entry) / 3600000;
+      }
+    }
 
     const enrichedMembers = (members || []).map(m => ({
       uid: m.student_id,
@@ -559,8 +583,9 @@ router.get('/groups/me', requireStudent, async (req, res) => {
       roll: m.students?.roll_no,
       role: m.role,
       joinedAt: m.joined_at,
-      todayHours: scoreMap[m.student_id]?.actual_hours || 0,
+      todayHours: parseFloat((liveHoursMap[m.student_id] || 0).toFixed(2)),
       points: scoreMap[m.student_id]?.final_points || 0,
+      penaltyApplied: (scoreMap[m.student_id]?.penalty_points || 0) > 0,
     }));
 
     res.json({ ...group, members: enrichedMembers, myRole: membership.role });
@@ -772,11 +797,84 @@ router.post('/groups/invites/:id/respond', requireStudent, async (req, res) => {
 });
 
 /**
- * DELETE /groups/me/leave — Leave current group
+ * PUT /groups/me/admin — Transfer admin role to another member (G-4)
+ * Body: { new_admin_uid }
+ */
+router.put('/groups/me/admin', requireStudent, async (req, res) => {
+  try {
+    const { uid } = req.student;
+    const { new_admin_uid } = req.body;
+
+    if (!new_admin_uid) return res.status(400).json({ error: 'new_admin_uid is required' });
+
+    // Caller must be ADMIN
+    const { data: myMembership } = await supabase
+      .from('group_members')
+      .select('group_id, role')
+      .eq('student_id', uid)
+      .single();
+
+    if (!myMembership) return res.status(404).json({ error: 'You are not in a group' });
+    if (myMembership.role !== 'ADMIN') return res.status(403).json({ error: 'Only the current admin can transfer admin role' });
+
+    // New admin must be in the same group
+    const { data: targetMember } = await supabase
+      .from('group_members')
+      .select('id')
+      .eq('student_id', new_admin_uid)
+      .eq('group_id', myMembership.group_id)
+      .single();
+
+    if (!targetMember) return res.status(404).json({ error: 'Target student is not in your group' });
+
+    // Demote caller → MEMBER, promote target → ADMIN
+    await supabase.from('group_members').update({ role: 'MEMBER' }).eq('student_id', uid).eq('group_id', myMembership.group_id);
+    await supabase.from('group_members').update({ role: 'ADMIN' }).eq('student_id', new_admin_uid).eq('group_id', myMembership.group_id);
+
+    res.json({ message: 'Admin role transferred successfully' });
+  } catch (error) {
+    console.error('[GROUPS] Transfer admin error:', error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * DELETE /groups/me/leave — Leave current group (G-4)
+ * Admin must transfer role first if other members exist.
+ * If admin is the last member, the group is deleted.
  */
 router.delete('/groups/me/leave', requireStudent, async (req, res) => {
   try {
     const { uid } = req.student;
+
+    const { data: membership } = await supabase
+      .from('group_members')
+      .select('group_id, role')
+      .eq('student_id', uid)
+      .single();
+
+    if (!membership) return res.status(404).json({ error: 'You are not in a group' });
+
+    // If admin, check remaining members
+    if (membership.role === 'ADMIN') {
+      const { count } = await supabase
+        .from('group_members')
+        .select('*', { count: 'exact', head: true })
+        .eq('group_id', membership.group_id);
+
+      if (count > 1) {
+        return res.status(403).json({
+          error: 'Transfer admin role to another member before leaving.',
+          code: 'ADMIN_MUST_TRANSFER',
+        });
+      }
+
+      // Last member — delete the group (cascades to members/invites/scores)
+      await supabase.from('groups').delete().eq('id', membership.group_id);
+      return res.json({ message: 'Group deleted and you have left' });
+    }
+
+    // Regular member — just remove
     const { error } = await supabase
       .from('group_members')
       .delete()
