@@ -23,7 +23,7 @@ export const GroupProvider = ({ children }) => {
   const [loading, setLoading]           = useState(true);
   const [inviteError, setInviteError]   = useState(null);
 
-  // ── Refresh: parallel fetch from real API ─────────────────────────────────
+  // ── Refresh: uses allSettled so one failing call doesn't kill the rest ────
   const refresh = useCallback(async () => {
     if (!user?.roll) {
       setGroup(null); setMembers([]); setPendingInvites([]);
@@ -32,16 +32,29 @@ export const GroupProvider = ({ children }) => {
     }
     setLoading(true);
     try {
-      const [groupData, invitesData, lbData] = await Promise.all([
+      const results = await Promise.allSettled([
         fetchMyGroup(),
         fetchMyGroupInvites(),
         fetchGroupLeaderboard(),
       ]);
+
+      const groupData   = results[0].status === 'fulfilled' ? results[0].value : null;
+      const invitesData = results[1].status === 'fulfilled' ? results[1].value : [];
+      const lbData      = results[2].status === 'fulfilled' ? results[2].value : [];
+
+      // Log any failures for debugging
+      results.forEach((r, i) => {
+        if (r.status === 'rejected') {
+          const names = ['fetchMyGroup', 'fetchMyGroupInvites', 'fetchGroupLeaderboard'];
+          console.warn(`[GroupContext] ${names[i]} failed:`, r.reason?.message || r.reason);
+        }
+      });
+
       setGroup(groupData || null);
       setMembers(groupData?.members || []);
       setPendingInvites(invitesData || []);
       setLeaderboard(lbData || []);
-      setSentInvites([]);  // reset; populated optimistically on sendInvite
+      setSentInvites([]);
     } catch (err) {
       console.error('[GroupContext] refresh error:', err.message);
     } finally {
@@ -54,21 +67,45 @@ export const GroupProvider = ({ children }) => {
   // ── Actions ───────────────────────────────────────────────────────────────
 
   const createGroup = useCallback(async (name, targetHours, penaltyPoints) => {
-    const newGroup = await apiCreateGroup(
-      name,
-      parseFloat(targetHours),
-      parseFloat(penaltyPoints),
-    );
-    // Fire refresh in background — don't block the modal from closing
+    const thours = parseFloat(targetHours);
+    const ppoints = parseFloat(penaltyPoints);
+
+    const newGroup = await apiCreateGroup(name, thours, ppoints);
+
+    // Optimistically set group state from the create response so the UI
+    // switches to "in group" view immediately — don't depend on refresh.
+    setGroup({
+      ...newGroup,
+      target_hours: newGroup.target_hours ?? thours,
+      penalty_points: newGroup.penalty_points ?? ppoints,
+      myRole: 'ADMIN',
+      members: [{
+        uid:  user?.uid,
+        name: user?.name || 'You',
+        roll: user?.roll,
+        role: 'ADMIN',
+        todayHours: 0,
+        points: 0,
+      }],
+    });
+    setMembers([{
+      uid:  user?.uid,
+      name: user?.name || 'You',
+      roll: user?.roll,
+      role: 'ADMIN',
+      todayHours: 0,
+      points: 0,
+    }]);
+
+    // Background refresh for full authoritative data (leaderboard etc.)
     refresh().catch(() => {});
     return newGroup;
-  }, [refresh]);
+  }, [refresh, user]);
 
   const inviteMember = useCallback(async (receiverRoll) => {
     setInviteError(null);
     try {
       await sendGroupInvite(receiverRoll.trim().toUpperCase());
-      // Optimistic: show in "sent" list immediately
       setSentInvites(prev => [
         ...prev,
         { id: `opt-${Date.now()}`, receiverRoll: receiverRoll.trim().toUpperCase(), status: 'PENDING' },
@@ -92,6 +129,9 @@ export const GroupProvider = ({ children }) => {
 
   const leaveGroup = useCallback(async () => {
     await apiLeaveGroup();
+    // Optimistically clear group state
+    setGroup(null);
+    setMembers([]);
     refresh().catch(() => {});
   }, [refresh]);
 
@@ -101,15 +141,12 @@ export const GroupProvider = ({ children }) => {
   }, [refresh]);
 
   // ── Computed helpers ──────────────────────────────────────────────────────
-  // Backend returns myRole on the group object; use it for admin check
   const isAdmin = group?.myRole === 'ADMIN';
 
-  // Identify the current user's member record (matched by uid or roll)
   const myMember = members.find(
     m => m.uid === user?.uid || m.roll === user?.roll,
   );
 
-  // target_hours is snake_case from the Supabase row
   const remainingHours = group && myMember
     ? Math.max(0, (group.target_hours ?? 0) - (myMember.todayHours || 0))
     : 0;
