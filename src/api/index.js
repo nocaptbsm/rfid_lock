@@ -97,4 +97,37 @@ export const fetchMyFeedbacks = () =>
 export const fetchAllFeedbacks = () =>
   api.get('/admin/feedbacks').then(res => res.data);
 
+// ─── Group System ─────────────────────────────────────────────────────
+// GET /groups/me — returns { ...group, members, myRole } or null
+export const fetchMyGroup = () =>
+  api.get('/groups/me').then(res => res.data);
+
+// POST /groups — { name, target_hours, penalty_points }
+export const createGroup = (name, target_hours, penalty_points) =>
+  api.post('/groups', { name, target_hours, penalty_points }).then(res => res.data);
+
+// GET /groups/invites — pending invites for the logged-in student
+export const fetchMyGroupInvites = () =>
+  api.get('/groups/invites').then(res => res.data);
+
+// POST /groups/invites — invite by roll number
+export const sendGroupInvite = (receiver_roll) =>
+  api.post('/groups/invites', { receiver_roll }).then(res => res.data);
+
+// POST /groups/invites/:id/respond — action: 'ACCEPT' | 'REJECT'
+export const respondToGroupInvite = (inviteId, action) =>
+  api.post(`/groups/invites/${inviteId}/respond`, { action }).then(res => res.data);
+
+// DELETE /groups/me/leave
+export const leaveGroup = () =>
+  api.delete('/groups/me/leave').then(res => res.data);
+
+// PUT /groups/me/admin — transfer admin to another member
+export const transferGroupAdmin = (new_admin_uid) =>
+  api.put('/groups/me/admin', { new_admin_uid }).then(res => res.data);
+
+// GET /groups/leaderboard — all groups ranked by cumulative points
+export const fetchGroupLeaderboard = () =>
+  api.get('/groups/leaderboard').then(res => res.data);
+
 export default api;

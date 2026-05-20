@@ -1,144 +1,127 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/context/AuthContext';
-import { mockGroupStore, initMockGroupStore } from '@/utils/mockGroupStore';
-import { getCutoffTime } from '@/utils/sessionUtils';
+import {
+  fetchMyGroup,
+  createGroup as apiCreateGroup,
+  fetchMyGroupInvites,
+  sendGroupInvite,
+  respondToGroupInvite,
+  leaveGroup as apiLeaveGroup,
+  transferGroupAdmin,
+  fetchGroupLeaderboard,
+} from '@/api/index';
 
 const GroupContext = createContext(null);
 
 export const GroupProvider = ({ children }) => {
   const { user } = useAuth();
-  const [group, setGroup] = useState(null);
-  const [members, setMembers] = useState([]);
+  const [group, setGroup]               = useState(null);
+  const [members, setMembers]           = useState([]);
+  const [leaderboard, setLeaderboard]   = useState([]);
   const [pendingInvites, setPendingInvites] = useState([]);
-  const [sentInvites, setSentInvites] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [inviteError, setInviteError] = useState(null);
+  const [sentInvites, setSentInvites]   = useState([]);
+  const [loading, setLoading]           = useState(true);
+  const [inviteError, setInviteError]   = useState(null);
 
-  // ── Refresh all state from the mock store ──────────────────────────────────
-  const refresh = useCallback(() => {
+  // ── Refresh: parallel fetch from real API ─────────────────────────────────
+  const refresh = useCallback(async () => {
     if (!user?.roll) {
-      setGroup(null);
-      setMembers([]);
-      setPendingInvites([]);
-      setSentInvites([]);
-      setLoading(false);
+      setGroup(null); setMembers([]); setPendingInvites([]);
+      setSentInvites([]); setLeaderboard([]); setLoading(false);
       return;
     }
-
     setLoading(true);
-
-    // Init seed data if first time
-    if (import.meta.env.VITE_USE_MOCK) {
-      initMockGroupStore();
+    try {
+      const [groupData, invitesData, lbData] = await Promise.all([
+        fetchMyGroup(),
+        fetchMyGroupInvites(),
+        fetchGroupLeaderboard(),
+      ]);
+      setGroup(groupData || null);
+      setMembers(groupData?.members || []);
+      setPendingInvites(invitesData || []);
+      setLeaderboard(lbData || []);
+      setSentInvites([]);  // reset; populated optimistically on sendInvite
+    } catch (err) {
+      console.error('[GroupContext] refresh error:', err.message);
+    } finally {
+      setLoading(false);
     }
-
-    const rawGroup = mockGroupStore.getGroupForUser(user.roll);
-    const rawMembers = mockGroupStore.getMembersForUser(user.roll);
-    const rawInvites = mockGroupStore.getInvitesForUser(user.roll);
-
-    // Apply dynamic 10 PM penalty logic (same as session termination)
-    const now = new Date();
-    const cutoff = getCutoffTime(now);
-
-    let processedMembers = rawMembers;
-    if (rawGroup && now >= cutoff) {
-      processedMembers = rawMembers.map(member => {
-        if (member.todayHours < rawGroup.targetHours && member.status !== 'Completed') {
-          return { ...member, points: member.points - rawGroup.penaltyPoints, status: 'Penalty Applied' };
-        }
-        return member;
-      });
-    }
-
-    setGroup(rawGroup);
-    setMembers(processedMembers);
-    setPendingInvites(rawInvites);
-
-    // Sent invites: only visible if user is group admin
-    if (rawGroup) {
-      const myMember = rawMembers.find(m => m.roll === user.roll);
-      if (myMember?.role === 'ADMIN') {
-        setSentInvites(mockGroupStore.getSentInvitesForGroup(rawGroup.id));
-      }
-    }
-
-    setLoading(false);
   }, [user?.roll]);
 
-  // ── Initial load + re-run when user changes ────────────────────────────────
-  useEffect(() => {
-    // Small simulated async delay
-    const t = setTimeout(() => refresh(), 400);
-    return () => clearTimeout(t);
-  }, [refresh]);
+  useEffect(() => { refresh(); }, [refresh]);
 
-  // ── Actions ────────────────────────────────────────────────────────────────
+  // ── Actions ───────────────────────────────────────────────────────────────
 
   const createGroup = useCallback(async (name, targetHours, penaltyPoints) => {
-    const newGroup = mockGroupStore.createGroup({
+    const newGroup = await apiCreateGroup(
       name,
-      targetHours,
-      penaltyPoints,
-      creatorRoll: user.roll,
-      creatorName: user.name || user.roll,
-    });
-    refresh();
+      parseFloat(targetHours),
+      parseFloat(penaltyPoints),
+    );
+    await refresh();
     return newGroup;
-  }, [user, refresh]);
+  }, [refresh]);
 
   const inviteMember = useCallback(async (receiverRoll) => {
     setInviteError(null);
-    if (!group) return { success: false, error: 'Not in a group' };
-
-    const myMember = members.find(m => m.roll === user.roll);
-    const result = mockGroupStore.sendInvite({
-      groupId: group.id,
-      groupName: group.name,
-      targetHours: group.targetHours,
-      penaltyPoints: group.penaltyPoints,
-      senderRoll: user.roll,
-      senderName: myMember?.name || user.roll,
-      receiverRoll: receiverRoll.trim().toUpperCase(),
-    });
-
-    if (!result.success) {
-      setInviteError(result.error);
-    } else {
-      // Refresh sent invites immediately
-      setSentInvites(mockGroupStore.getSentInvitesForGroup(group.id));
+    try {
+      await sendGroupInvite(receiverRoll.trim().toUpperCase());
+      // Optimistic: show in "sent" list immediately
+      setSentInvites(prev => [
+        ...prev,
+        { id: `opt-${Date.now()}`, receiverRoll: receiverRoll.trim().toUpperCase(), status: 'PENDING' },
+      ]);
+      return { success: true };
+    } catch (err) {
+      const msg = err.response?.data?.error || 'Failed to send invite';
+      setInviteError(msg);
+      return { success: false, error: msg };
     }
-    return result;
-  }, [group, members, user]);
+  }, []);
 
   const respondToInvite = useCallback(async (inviteId, accept) => {
-    if (accept) {
-      mockGroupStore.acceptInvite(inviteId, user.roll, user.name || user.roll);
-    } else {
-      mockGroupStore.rejectInvite(inviteId);
+    try {
+      await respondToGroupInvite(inviteId, accept ? 'ACCEPT' : 'REJECT');
+      await refresh();
+    } catch (err) {
+      console.error('[GroupContext] respondToInvite:', err.message);
     }
-    refresh();
-  }, [user, refresh]);
+  }, [refresh]);
 
   const leaveGroup = useCallback(async () => {
-    mockGroupStore.leaveGroup(user.roll);
-    refresh();
-  }, [user, refresh]);
+    await apiLeaveGroup();
+    await refresh();
+  }, [refresh]);
 
-  // ── Computed helpers ────────────────────────────────────────────────────────
-  const isAdmin = group && members.find(m => m.roll === user?.roll)?.role === 'ADMIN';
+  const transferAdmin = useCallback(async (newAdminUid) => {
+    await transferGroupAdmin(newAdminUid);
+    await refresh();
+  }, [refresh]);
 
-  // Calculate current user's remaining hours for reminder
-  const myMember = members.find(m => m.roll === user?.roll);
+  // ── Computed helpers ──────────────────────────────────────────────────────
+  // Backend returns myRole on the group object; use it for admin check
+  const isAdmin = group?.myRole === 'ADMIN';
+
+  // Identify the current user's member record (matched by uid or roll)
+  const myMember = members.find(
+    m => m.uid === user?.uid || m.roll === user?.roll,
+  );
+
+  // target_hours is snake_case from the Supabase row
   const remainingHours = group && myMember
-    ? Math.max(0, group.targetHours - (myMember.todayHours || 0))
+    ? Math.max(0, (group.target_hours ?? 0) - (myMember.todayHours || 0))
     : 0;
 
-  const targetMet = myMember ? (myMember.todayHours || 0) >= (group?.targetHours || 0) : false;
+  const targetMet = myMember
+    ? (myMember.todayHours || 0) >= (group?.target_hours || 0)
+    : false;
 
   return (
     <GroupContext.Provider value={{
       group,
       members,
+      leaderboard,
       pendingInvites,
       sentInvites,
       loading,
@@ -151,6 +134,7 @@ export const GroupProvider = ({ children }) => {
       inviteMember,
       respondToInvite,
       leaveGroup,
+      transferAdmin,
       refresh,
     }}>
       {children}

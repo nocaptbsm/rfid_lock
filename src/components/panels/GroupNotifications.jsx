@@ -69,7 +69,7 @@ const GroupNotifications = () => {
         ))}
 
         {/* Target reminder — only show if in a group AND target not yet met AND before 10 PM */}
-        {group && !targetMet && remainingHours > 0 && (
+        {group && !targetMet && remainingHours > 0 && group.target_hours && (
           <motion.div
             key="target-reminder"
             layout
@@ -84,7 +84,7 @@ const GroupNotifications = () => {
             <div>
               <p className="text-sm font-semibold text-foreground">Target Reminder — {group.name}</p>
               <p className="text-xs text-amber-600 mt-0.5 font-medium">
-                You still need <span className="font-bold">{fmtRemaining(remainingHours)}</span> to hit today's {group.targetHours}h target. Keep going!
+                You still need <span className="font-bold">{fmtRemaining(remainingHours)}</span> to hit today's {group.target_hours}h target. Keep going!
               </p>
             </div>
           </motion.div>

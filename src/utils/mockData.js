@@ -90,6 +90,6 @@ export const MOCK_GROUP_DATA = {
     { rank: 3, name: 'Procrastinators', points: 950 },
   ],
   pendingInvites: [
-    { id: 'inv-1', groupName: 'Hackathon Squad', senderName: 'Amit Kumar', targetHours: 8 }
+    { id: 'inv-1', groupName: 'Hackathon Squad', senderName: 'Amit Kumar', targetHours: 8, penaltyPoints: 20 }
   ]
 };
