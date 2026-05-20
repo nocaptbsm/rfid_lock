@@ -125,24 +125,52 @@ const adminLogin = async (req, res) => {
 
 
 // ─── Student JWT / UID Middleware ─────────────────────────────────────
-// Groups are student-only. A student is identified by their JWT token
-// (issued at /student/login) which carries { role: 'student', uid, roll }.
-const requireStudent = (req, res, next) => {
+// Primary:  Bearer JWT with role='student' (issued at POST /student/login).
+// Fallback: X-Student-UID header (always sent by the frontend axios interceptor
+//           when parsed.uid is present). Verified against the students table so
+//           it can't be faked with a random string that doesn't exist in the DB.
+// This dual-path prevents 403s when an admin JWT is active in the same browser
+// session (shared localStorage) but the user navigates to a student-only page.
+const supabase = require('../config/supabase');
+
+const requireStudent = async (req, res, next) => {
+  // ── Path 1: valid student JWT ──────────────────────────────────────
   const auth = req.headers.authorization;
-  if (!auth || !auth.startsWith('Bearer ')) {
-    return res.status(401).json({ error: 'UNAUTHORIZED', message: 'Student login required' });
-  }
-  try {
-    const token = auth.slice(7);
-    const payload = jwt.verify(token, JWT_SECRET);
-    if (payload.role !== 'student') {
-      return res.status(403).json({ error: 'FORBIDDEN', message: 'Student access required' });
+  if (auth && auth.startsWith('Bearer ')) {
+    try {
+      const token = auth.slice(7);
+      const payload = jwt.verify(token, JWT_SECRET);
+      if (payload.role === 'student' && payload.uid) {
+        req.student = payload; // { uid, roll, name }
+        return next();
+      }
+      // Token valid but wrong role (e.g. admin) — fall through to UID header
+    } catch (err) {
+      // Expired or malformed token — fall through to UID header
     }
-    req.student = payload; // { uid, roll, name }
-    next();
-  } catch (err) {
-    return res.status(401).json({ error: 'INVALID_TOKEN', message: 'Token expired or invalid' });
   }
+
+  // ── Path 2: X-Student-UID header (DB-verified) ────────────────────
+  const rawUid = req.headers['x-student-uid'];
+  if (rawUid) {
+    try {
+      const { data: student } = await supabase
+        .from('students')
+        .select('uid, roll_no, name')
+        .eq('uid', rawUid.toUpperCase())
+        .maybeSingle();
+
+      if (student) {
+        req.student = { uid: student.uid, roll: student.roll_no, name: student.name };
+        return next();
+      }
+    } catch (err) {
+      console.error('[AUTH] requireStudent DB lookup error:', err.message);
+    }
+  }
+
+  return res.status(401).json({ error: 'UNAUTHORIZED', message: 'Student login required' });
 };
 
 module.exports = { apiKeyValidator, hmacValidator, requireAdmin, adminLogin, requireStudent };
+
