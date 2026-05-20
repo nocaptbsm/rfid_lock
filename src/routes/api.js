@@ -297,13 +297,28 @@ router.get('/admin/security-log', requireAdmin, async (req, res) => {
 
 /**
  * POST /student/login — Student login with UID and password
+ * Returns stats + a signed JWT so the student can call requireStudent-guarded endpoints.
  */
 router.post('/student/login', async (req, res) => {
   try {
     const { uid, password } = req.body;
     if (!uid || !password) return res.status(400).json({ error: 'UID and password required' });
+
     const stats = await attendanceService.verifyStudentLogin(uid, password);
-    res.json(stats);
+
+    // Sign a student JWT — carried by the frontend for group/protected endpoints
+    const token = jwt.sign(
+      {
+        role: 'student',
+        uid:  stats.student.uid,
+        roll: stats.student.roll_no,
+        name: stats.student.name || '',
+      },
+      JWT_SECRET,
+      { expiresIn: '8h' },
+    );
+
+    res.json({ ...stats, token });
   } catch (error) {
     res.status(401).json({ error: error.message });
   }
