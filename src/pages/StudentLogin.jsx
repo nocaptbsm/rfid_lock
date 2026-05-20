@@ -51,10 +51,11 @@ const StudentLogin = () => {
       }
 
       login({
-        roll: result.student.roll_no,
-        name: result.student.name || 'Student',
-        uid: result.student.uid,
-        role: 'student',
+        roll:  result.student.roll_no,
+        name:  result.student.name || 'Student',
+        uid:   result.student.uid,
+        role:  'student',
+        token: result.token,   // JWT for requireStudent-guarded endpoints
       });
       navigate(`/student/${result.student.roll_no}`);
     } catch (err) {
