@@ -1,20 +1,32 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Users, Target, ShieldAlert, Loader2 } from 'lucide-react';
+import { X, Users, Target, ShieldAlert, Loader2, AlertCircle } from 'lucide-react';
 
 const CreateGroupModal = ({ isOpen, onClose, onSubmit }) => {
   const [name, setName] = useState('');
   const [targetHours, setTargetHours] = useState('5');
   const [penaltyPoints, setPenaltyPoints] = useState('20');
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!name.trim()) return;
-    
+    setError('');
     setLoading(true);
-    await onSubmit(name, targetHours, penaltyPoints);
-    setLoading(false);
+    try {
+      await onSubmit(name, targetHours, penaltyPoints);
+      onClose();
+    } catch (err) {
+      setError(err?.response?.data?.error || err?.message || 'Failed to create group. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleClose = () => {
+    if (loading) return;
+    setError('');
     onClose();
   };
 
@@ -26,7 +38,7 @@ const CreateGroupModal = ({ isOpen, onClose, onSubmit }) => {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            onClick={onClose}
+            onClick={handleClose}
             className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50"
           />
           <motion.div
@@ -40,7 +52,7 @@ const CreateGroupModal = ({ isOpen, onClose, onSubmit }) => {
                 <Users className="text-primary" size={24} /> Create a Group
               </h2>
               <button 
-                onClick={onClose}
+                onClick={handleClose}
                 className="text-muted-foreground hover:text-foreground transition-colors p-2 hover:bg-secondary rounded-lg"
               >
                 <X size={20} />
@@ -94,11 +106,19 @@ const CreateGroupModal = ({ isOpen, onClose, onSubmit }) => {
                 </p>
               </div>
 
-              <div className="pt-4 flex gap-3">
+              <div className="pt-4 space-y-3">
+                {error && (
+                  <div className="flex items-start gap-2 p-3 bg-rose-500/10 border border-rose-500/20 rounded-xl text-rose-500 text-sm">
+                    <AlertCircle size={16} className="shrink-0 mt-0.5" />
+                    <span>{error}</span>
+                  </div>
+                )}
+                <div className="flex gap-3">
                 <button
                   type="button"
-                  onClick={onClose}
-                  className="flex-1 px-4 py-3 rounded-xl font-medium text-foreground bg-secondary hover:bg-secondary/80 transition-colors"
+                  onClick={handleClose}
+                  disabled={loading}
+                  className="flex-1 px-4 py-3 rounded-xl font-medium text-foreground bg-secondary hover:bg-secondary/80 transition-colors disabled:opacity-50"
                 >
                   Cancel
                 </button>
@@ -109,6 +129,7 @@ const CreateGroupModal = ({ isOpen, onClose, onSubmit }) => {
                 >
                   {loading ? <Loader2 size={18} className="animate-spin" /> : 'Create Group'}
                 </button>
+                </div>
               </div>
             </form>
           </motion.div>

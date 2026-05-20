@@ -61,6 +61,7 @@ export const GroupProvider = ({ children }) => {
     );
     await refresh();
     return newGroup;
+    // Note: errors propagate up to the modal's try/catch intentionally
   }, [refresh]);
 
   const inviteMember = useCallback(async (receiverRoll) => {
