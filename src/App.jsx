@@ -24,6 +24,14 @@ const ProtectedRoute = ({ children, adminOnly = false }) => {
   return children;
 };
 
+// CRITICAL-5: Only mount GroupProvider for student sessions
+// Prevents 401 API noise on every admin login.
+const StudentGroupWrapper = ({ children }) => {
+  const { isAdmin } = useAuth();
+  if (isAdmin) return children;
+  return <GroupProvider>{children}</GroupProvider>;
+};
+
 const DashboardLayout = ({ children }) => {
   return (
     <div className="dashboard-root dark text-foreground transition-colors duration-300">
@@ -44,8 +52,8 @@ function App() {
     <ThemeProvider>
       <AuthProvider>
         <RfidProvider>
-          <GroupProvider>
-            <Router>
+          <Router>
+            <StudentGroupWrapper>
               <React.Suspense fallback={
                 <div className="h-screen flex items-center justify-center bg-background">
                   <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
@@ -107,8 +115,8 @@ function App() {
                   <Route path="*" element={<Navigate to="/" replace />} />
                 </Routes>
               </React.Suspense>
-            </Router>
-          </GroupProvider>
+            </StudentGroupWrapper>
+          </Router>
         </RfidProvider>
       </AuthProvider>
     </ThemeProvider>

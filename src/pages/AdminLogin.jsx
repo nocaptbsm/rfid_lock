@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { adminLogin } from '@/api';
-import { ShieldCheck, ArrowRight, AlertCircle, Loader2, ArrowLeft, KeyRound } from 'lucide-react';
+import { ShieldCheck, ArrowRight, AlertCircle, Loader2, ArrowLeft, KeyRound, Eye, EyeOff } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 const AdminLogin = () => {
@@ -10,6 +10,7 @@ const AdminLogin = () => {
   const [password, setPassword] = useState('');
   const [loading, setLoading]   = useState(false);
   const [error, setError]       = useState('');
+  const [showPassword, setShowPwd] = useState(false);
   const { login }               = useAuth();
   const navigate                = useNavigate();
 
@@ -94,12 +95,20 @@ const AdminLogin = () => {
                 <KeyRound size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
                 <input
                   id="admin-password"
-                  type="password"
+                  type={showPassword ? 'text' : 'password'}
                   placeholder="••••••••"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full pl-10 pr-4 py-3 bg-secondary/50 border border-border rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all"
+                  className="w-full pl-10 pr-10 py-3 bg-secondary/50 border border-border rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all"
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowPwd(v => !v)}
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
               </div>
             </div>
 

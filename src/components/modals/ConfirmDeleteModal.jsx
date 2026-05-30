@@ -2,8 +2,51 @@ import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { AlertTriangle, Loader2, X } from 'lucide-react';
 
-const ConfirmDeleteModal = ({ student, onConfirm, onCancel, loading }) => {
-  if (!student) return null;
+/**
+ * ConfirmDeleteModal — supports two calling conventions:
+ *
+ * 1. Legacy (student records):
+ *    <ConfirmDeleteModal student={studentObj} onConfirm={fn} onCancel={fn} loading={bool} />
+ *
+ * 2. Generic (card delete, date-range delete, etc.):
+ *    <ConfirmDeleteModal
+ *      isOpen={bool}
+ *      title="Delete RFID Card"
+ *      message="Custom message here"
+ *      confirmLabel="Delete"     (optional, defaults to "Confirm")
+ *      onConfirm={fn}
+ *      onCancel={fn}
+ *      loading={bool}
+ *    />
+ */
+const ConfirmDeleteModal = ({
+  // Legacy props
+  student,
+  // Generic props
+  isOpen,
+  title,
+  message,
+  confirmLabel = 'Delete',
+  // Shared
+  onConfirm,
+  onCancel,
+  loading,
+}) => {
+  // Support both calling conventions
+  const open = isOpen !== undefined ? isOpen : !!student;
+  if (!open) return null;
+
+  const displayTitle  = title   || 'Delete Student Records?';
+  const displayMsg    = message || (
+    <>
+      This will permanently delete all attendance logs for{' '}
+      <span className="text-foreground font-semibold px-1">
+        {student?.name || student?.roll || student?.uid}
+      </span>
+      . This action cannot be undone.
+    </>
+  );
+  const displayLabel  = confirmLabel;
 
   return (
     <AnimatePresence>
@@ -39,14 +82,8 @@ const ConfirmDeleteModal = ({ student, onConfirm, onCancel, loading }) => {
 
           {/* Content */}
           <div className="space-y-2 mb-8">
-            <h3 className="text-xl font-bold">Delete Student Records?</h3>
-            <p className="text-sm text-muted-foreground">
-              This will permanently delete all attendance logs for 
-              <span className="text-foreground font-semibold px-1">
-                {student.name || student.roll || student.uid}
-              </span>. 
-              This action cannot be undone.
-            </p>
+            <h3 className="text-xl font-bold">{displayTitle}</h3>
+            <p className="text-sm text-muted-foreground">{displayMsg}</p>
           </div>
 
           {/* Actions */}
@@ -66,7 +103,7 @@ const ConfirmDeleteModal = ({ student, onConfirm, onCancel, loading }) => {
               {loading ? (
                 <Loader2 size={16} className="animate-spin" />
               ) : (
-                'Delete All Records'
+                displayLabel
               )}
             </button>
           </div>

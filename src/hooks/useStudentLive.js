@@ -99,25 +99,26 @@ export const useStudentLive = (roll) => {
     if (!roll) return;
 
     const wsUrl = import.meta.env.VITE_WS_URL || 'ws://localhost:8000';
-    
+    let retries = 0;
+    const MAX_RETRIES = 5;
+    let retryTimer = null;
+
     const connect = () => {
       try {
         ws.current = new WebSocket(wsUrl);
 
         ws.current.onopen = () => {
+          retries = 0; // reset on successful connect
           setWsStatus('live');
           console.log('Student Dashboard: WS Connected');
         };
 
         ws.current.onmessage = (event) => {
           const payload = JSON.parse(event.data);
-          // Only refresh if the scan event is for THIS student
           if (payload.type === 'SCAN_EVENT' && payload.data.roll === roll) {
             console.log('Relevant scan detected, refreshing...');
             refresh();
           }
-
-          // Handle targeted record clearing from Admin
           if (payload.type === 'RECORDS_CLEARED' && payload.data.roll === roll) {
             console.log('Admin cleared records, wiping local state...');
             setData(prev => ({
@@ -134,8 +135,16 @@ export const useStudentLive = (roll) => {
 
         ws.current.onclose = () => {
           setWsStatus('polling');
-          // Reconnect logic or fallback to polling
-          setTimeout(connect, 5000);
+          if (retries < MAX_RETRIES) {
+            // Exponential backoff: 2s, 4s, 8s, 16s, 32s
+            const delay = Math.min(2000 * Math.pow(2, retries), 32000);
+            retries++;
+            console.log(`WS reconnect attempt ${retries}/${MAX_RETRIES} in ${delay}ms`);
+            retryTimer = setTimeout(connect, delay);
+          } else {
+            console.warn('WS max retries reached — falling back to polling only.');
+            setWsStatus('polling');
+          }
         };
 
         ws.current.onerror = () => {
@@ -149,6 +158,7 @@ export const useStudentLive = (roll) => {
     connect();
 
     return () => {
+      clearTimeout(retryTimer);
       if (ws.current) ws.current.close();
     };
   }, [roll, refresh]);

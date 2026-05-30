@@ -4,8 +4,6 @@ import {
   Search, 
   User, 
   LogOut, 
-  Sun, 
-  Moon, 
   Library, 
   LayoutDashboard, 
   History, 
@@ -13,10 +11,12 @@ import {
   Menu,
   X,
   Maximize,
-  Minimize
+  Minimize,
+  Users
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { cn } from '@/utils/cn';
+import NotificationSettingsButton from '@/components/notifications/NotificationSettingsButton';
 
 const TopBar = () => {
   const { user, logout, isAdmin } = useAuth();
@@ -45,7 +45,8 @@ const TopBar = () => {
 
   const studentLinks = [
     { name: 'Dashboard', icon: LayoutDashboard, path: `/student/${user?.roll}` },
-    { name: 'History', icon: History, path: `/student/${user?.roll}/history` },
+    { name: 'History',   icon: History,         path: `/student/${user?.roll}/history` },
+    { name: 'Group',     icon: Users,           path: `/student/${user?.roll}/group` },
   ];
 
   const adminLinks = [
@@ -112,6 +113,9 @@ const TopBar = () => {
           <div className="h-6 w-px bg-border mx-1 hidden sm:block"></div>
 
           <div className="flex items-center gap-2 sm:gap-3">
+            {/* Push notification toggle — students only */}
+            {!isAdmin && <NotificationSettingsButton />}
+
             <button
               onClick={toggleFullscreen}
               className="p-2 text-muted-foreground hover:bg-secondary rounded-full transition-colors hidden sm:block"

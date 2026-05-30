@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, Link, Navigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -9,6 +9,7 @@ import { useGroup } from '@/context/GroupContext';
 import { useAuth } from '@/context/AuthContext';
 import CreateGroupModal from '@/components/modals/CreateGroupModal';
 import InviteMemberModal from '@/components/modals/InviteMemberModal';
+import PushPermissionBanner from '@/components/notifications/PushPermissionBanner';
 
 const container = {
   hidden: { opacity: 0 },
@@ -114,6 +115,13 @@ const StudentGroupDashboard = () => {
   const [showLeaveModal, setShowLeaveModal] = useState(false);
   const [leaveLoading, setLeaveLoading] = useState(false);
 
+  // Contextual push prompt: show after user has been on the group page for 3s
+  const [showPushPrompt, setShowPushPrompt] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => setShowPushPrompt(true), 3000);
+    return () => clearTimeout(t);
+  }, []);
+
   const fmtRemaining = (hrs) => {
     const h = Math.floor(hrs);
     const m = Math.round((hrs - h) * 60);
@@ -148,6 +156,9 @@ const StudentGroupDashboard = () => {
   if (!group) {
     return (
       <motion.div variants={container} initial="hidden" animate="show" className="space-y-6">
+        {/* Contextual push notification prompt */}
+        <PushPermissionBanner trigger={showPushPrompt} context="invite" />
+
         <Link to={`/student/${roll}`} className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-primary transition-colors">
           <ArrowLeft size={16} /> Back to Dashboard
         </Link>
@@ -193,24 +204,40 @@ const StudentGroupDashboard = () => {
           )}
         </AnimatePresence>
 
-        <motion.div variants={item} className="max-w-2xl mx-auto text-center">
-          <div className="glass-card p-12 rounded-3xl border border-primary/20 bg-gradient-to-b from-secondary/50 to-background">
-            <div className="w-20 h-20 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-6">
-              <Users className="text-primary" size={40} />
+        {/* ── Hero CTA: only show when no pending invites ── */}
+        {!pendingInvites?.length ? (
+          <motion.div variants={item} className="max-w-2xl mx-auto text-center">
+            <div className="glass-card p-12 rounded-3xl border border-primary/20 bg-gradient-to-b from-secondary/50 to-background">
+              <div className="w-20 h-20 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-6">
+                <Users className="text-primary" size={40} />
+              </div>
+              <h2 className="text-3xl font-bold mb-4">Study Better Together</h2>
+              <p className="text-muted-foreground mb-8 max-w-md mx-auto">
+                Create a productivity group with your friends. Set daily targets, track hours,
+                and hold each other accountable with a shared leaderboard and penalty system.
+              </p>
+              <button
+                onClick={() => setIsCreateModalOpen(true)}
+                className="bg-primary text-primary-foreground px-8 py-3 rounded-full font-medium hover:opacity-90 transition-opacity flex items-center gap-2 mx-auto shadow-lg shadow-primary/20"
+              >
+                <Plus size={20} /> Create a Group
+              </button>
             </div>
-            <h2 className="text-3xl font-bold mb-4">Study Better Together</h2>
-            <p className="text-muted-foreground mb-8 max-w-md mx-auto">
-              Create a productivity group with your friends. Set daily targets, track hours,
-              and hold each other accountable with a shared leaderboard and penalty system.
+          </motion.div>
+        ) : (
+          /* When invites exist, show a subtle "create instead" link */
+          <motion.div variants={item} className="text-center">
+            <p className="text-sm text-muted-foreground">
+              Not interested in these invites?{' '}
+              <button
+                onClick={() => setIsCreateModalOpen(true)}
+                className="text-primary underline-offset-2 hover:underline font-medium"
+              >
+                Create your own group
+              </button>
             </p>
-            <button
-              onClick={() => setIsCreateModalOpen(true)}
-              className="bg-primary text-primary-foreground px-8 py-3 rounded-full font-medium hover:opacity-90 transition-opacity flex items-center gap-2 mx-auto shadow-lg shadow-primary/20"
-            >
-              <Plus size={20} /> Create a Group
-            </button>
-          </div>
-        </motion.div>
+          </motion.div>
+        )}
 
         <CreateGroupModal isOpen={isCreateModalOpen} onClose={() => setIsCreateModalOpen(false)} onSubmit={createGroup} />
       </motion.div>

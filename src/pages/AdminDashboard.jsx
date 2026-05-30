@@ -5,19 +5,19 @@ import {
   Download, RefreshCw, Loader2, AlertCircle, Wifi,
   Trash2, Shield, ShieldAlert, ShieldCheck, ShieldX,
   CreditCard, Plus, Ban, CheckCircle2, Calendar,
-  MessageSquarePlus
+  MessageSquarePlus, Hash
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion'; // eslint-disable-line no-unused-vars
 import { useRfid } from '@/context/RfidContext';
+import { cn } from '@/utils/cn';
 import api, { deleteStudentLogs, updateStudentName, fetchCards, suspendCard, activateCard, registerCard, fetchSecurityLog, deleteCard, updateCardDetails, deleteLogsByDateRange } from '@/api';
 import ConfirmDeleteModal from '@/components/modals/ConfirmDeleteModal';
+import GeneratedPasswordModal from '@/components/modals/GeneratedPasswordModal';
 import { useLeaderboard } from '@/hooks/useLeaderboard';
 import LeaderboardPanel from '@/components/panels/LeaderboardPanel';
 import FeedbackSection, { AllFeedbacksPanel } from '@/components/panels/FeedbackSection';
 import { getCutoffTime } from '@/utils/sessionUtils';
 
-/* ─── helpers ───────────────────────────────────────────────── */
-const cn = (...c) => c.filter(Boolean).join(' ');
 
 const badge = (type) => {
   if (type === 'ENTRY') return 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30';
@@ -111,6 +111,7 @@ const RenameCell = ({ rfid, fallback, onSave }) => {
   const [editing, setEditing] = useState(false);
   const [loading, setLoading] = useState(false);
   const [draft,   setDraft]   = useState('');
+  const [genPwd, setGenPwd]   = useState({ open: false, name: '', password: '' });
   const current = aliases[rfid?.toUpperCase()];
   const isRegisteredName = fallback && fallback !== rfid && fallback !== 'UNKNOWN_CARD' && fallback !== 'CARD_SUSPENDED';
   const display = isRegisteredName ? fallback : (current || fallback || rfid);
@@ -125,7 +126,7 @@ const RenameCell = ({ rfid, fallback, onSave }) => {
       if (onSave) onSave();
       setEditing(false);
       if (res?.generatedPassword) {
-        window.alert(`Name updated. New password for ${draft.trim()}: ${res.generatedPassword}`);
+        setGenPwd({ open: true, name: draft.trim(), password: res.generatedPassword });
       }
     } catch (err) {
       console.error('Failed to rename student:', err);
@@ -135,29 +136,37 @@ const RenameCell = ({ rfid, fallback, onSave }) => {
   };
   const cancel = () => setEditing(false);
 
-  if (editing) return (
-    <div className="flex items-center gap-1.5 text-black">
-      <input
-        autoFocus
-        disabled={loading}
-        value={draft}
-        onChange={(e) => setDraft(e.target.value)}
-        onKeyDown={(e) => { if (e.key === 'Enter') save(); if (e.key === 'Escape') cancel(); }}
-        placeholder="Student name"
-        className="px-2 py-1 text-xs rounded-lg bg-secondary/60 border border-primary/40 outline-none w-36 focus:ring-1 focus:ring-primary/30 disabled:opacity-50"
-      />
-      <button onClick={save} disabled={loading} className="p-1 rounded-md hover:bg-emerald-500/20 text-emerald-500 disabled:opacity-50">
-        {loading ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />}
-      </button>
-      <button onClick={cancel} disabled={loading} className="p-1 rounded-md hover:bg-rose-500/20 text-rose-500 disabled:opacity-50"><X size={13} /></button>
-    </div>
-  );
-
   return (
-    <button onClick={startEdit} className="flex items-center gap-1.5 group/rename text-left">
-      <span className={cn('text-sm', !current && 'text-muted-foreground italic')}>{display}</span>
-      <Pencil size={12} className="opacity-0 group-hover/rename:opacity-60 transition-opacity text-primary shrink-0" />
-    </button>
+    <>
+      <GeneratedPasswordModal
+        isOpen={genPwd.open}
+        name={genPwd.name}
+        password={genPwd.password}
+        onClose={() => setGenPwd(p => ({ ...p, open: false }))}
+      />
+      {editing ? (
+        <div className="flex items-center gap-1.5">
+          <input
+            autoFocus
+            disabled={loading}
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') save(); if (e.key === 'Escape') cancel(); }}
+            placeholder="Student name"
+            className="px-2 py-1 text-xs rounded-lg bg-secondary/60 border border-primary/40 outline-none w-36 focus:ring-1 focus:ring-primary/30 disabled:opacity-50"
+          />
+          <button onClick={save} disabled={loading} className="p-1 rounded-md hover:bg-emerald-500/20 text-emerald-500 disabled:opacity-50">
+            {loading ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />}
+          </button>
+          <button onClick={cancel} disabled={loading} className="p-1 rounded-md hover:bg-rose-500/20 text-rose-500 disabled:opacity-50"><X size={13} /></button>
+        </div>
+      ) : (
+        <button onClick={startEdit} className="flex items-center gap-1.5 group/rename text-left">
+          <span className={cn('text-sm', !current && 'text-muted-foreground italic')}>{display}</span>
+          <Pencil size={12} className="opacity-0 group-hover/rename:opacity-60 transition-opacity text-primary shrink-0" />
+        </button>
+      )}
+    </>
   );
 };
 
@@ -420,7 +429,9 @@ const CardManagementPanel = () => {
   const [error, setError] = useState('');
 
   const [editingCard, setEditingCard] = useState(null);
-  const [editForm, setEditForm] = useState({ uid: '', name: '' });
+  const [editForm, setEditForm]       = useState({ uid: '', name: '' });
+  const [genPwd, setGenPwd]           = useState({ open: false, name: '', password: '' });
+  const [deleteTarget, setDeleteTarget] = useState(null); // uid to delete
 
   const handleUpdateCard = async (oldUid) => {
     if (!editForm.uid || (!editForm.name && cards.find(c => c.uid === oldUid)?.role === 'STUDENT')) return;
@@ -430,7 +441,7 @@ const CardManagementPanel = () => {
       setEditingCard(null);
       await loadCards();
       if (res?.generatedPassword) {
-        window.alert(`Card updated. New password for ${editForm.name || res.name}: ${res.generatedPassword}`);
+        setGenPwd({ open: true, name: editForm.name || res.name || '', password: res.generatedPassword });
       }
     } catch (err) {
       setError(err.response?.data?.error || 'Update failed');
@@ -469,11 +480,17 @@ const CardManagementPanel = () => {
     }
   };
 
-  const handleDeleteCard = async (uid) => {
-    if (!window.confirm(`Are you sure you want to permanently delete card ${uid}? This will also delete all of the student's access records.`)) return;
-    setActionLoading(`delete-${uid}`);
+  const handleDeleteCard = (uid) => {
+    // Show ConfirmDeleteModal instead of window.confirm
+    setDeleteTarget(uid);
+  };
+
+  const confirmDeleteCard = async () => {
+    if (!deleteTarget) return;
+    setActionLoading(`delete-${deleteTarget}`);
+    setDeleteTarget(null);
     try {
-      await deleteCard(uid);
+      await deleteCard(deleteTarget);
       await loadCards();
     } catch (err) {
       setError(err.response?.data?.error || 'Delete failed');
@@ -493,7 +510,7 @@ const CardManagementPanel = () => {
       setShowRegister(false);
       await loadCards();
       if (res.generatedPassword) {
-        window.alert(`Successfully registered ${newCard.name}. Generated Password for student login: ${res.generatedPassword}`);
+        setGenPwd({ open: true, name: newCard.name, password: res.generatedPassword });
       }
     } catch (err) {
       setError(err.response?.data?.error || 'Registration failed');
@@ -519,6 +536,19 @@ const CardManagementPanel = () => {
 
   return (
     <div className="glass-card rounded-2xl overflow-hidden">
+      <GeneratedPasswordModal
+        isOpen={genPwd.open}
+        name={genPwd.name}
+        password={genPwd.password}
+        onClose={() => setGenPwd(p => ({ ...p, open: false }))}
+      />
+      <ConfirmDeleteModal
+        isOpen={!!deleteTarget}
+        title="Delete RFID Card"
+        message={`Permanently delete card ${deleteTarget}? This will also erase all associated access records.`}
+        onConfirm={confirmDeleteCard}
+        onCancel={() => setDeleteTarget(null)}
+      />
       <div className="px-6 py-4 border-b border-border flex flex-col sm:flex-row sm:items-center gap-3">
         <div className="flex items-center gap-2">
           <CreditCard size={18} className="text-primary" />
@@ -837,6 +867,17 @@ const AdminDashboard = () => {
   const [deleteError, setDeleteError] = useState('');
   const [deleteSuccess, setDeleteSuccess] = useState('');
 
+  // UX-9: Count records in selected range from in-memory logs for preview
+  const deleteRangeCount = useMemo(() => {
+    if (!deleteRange.from || !deleteRange.to) return 0;
+    const from = new Date(deleteRange.from + 'T00:00:00');
+    const to   = new Date(deleteRange.to   + 'T23:59:59');
+    return logs.filter(l => {
+      const ts = new Date(l.timestamp);
+      return ts >= from && ts <= to;
+    }).length;
+  }, [logs, deleteRange.from, deleteRange.to]);
+
   const handleDeleteByRange = async () => {
     if (!deleteRange.from || !deleteRange.to) return;
     if (new Date(deleteRange.from) > new Date(deleteRange.to)) {
@@ -1082,6 +1123,22 @@ const AdminDashboard = () => {
                     </button>
                   ))}
                 </div>
+
+                {/* Record count preview — UX-9 */}
+                {deleteRange.from && deleteRange.to && (
+                  <div className={`flex items-center gap-2 p-3 rounded-xl text-xs font-medium border ${
+                    deleteRangeCount === 0
+                      ? 'bg-secondary/50 border-border text-muted-foreground'
+                      : 'bg-rose-500/10 border-rose-500/20 text-rose-400'
+                  }`}>
+                    <Hash size={13} className="shrink-0" />
+                    <span>
+                      {deleteRangeCount === 0
+                        ? 'No records found in this date range.'
+                        : <>This will delete <strong>{deleteRangeCount}</strong> record{deleteRangeCount !== 1 ? 's' : ''} in the selected range.</>}
+                    </span>
+                  </div>
+                )}
 
                 {/* Warning */}
                 <div className="flex items-start gap-2 p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl text-xs text-amber-600 dark:text-amber-400">

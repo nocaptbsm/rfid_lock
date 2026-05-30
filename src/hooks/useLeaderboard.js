@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { fetchLeaderboard } from '@/api';
 
 export const useLeaderboard = () => {
@@ -6,23 +6,28 @@ export const useLeaderboard = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  const refreshLeaderboard = async () => {
+  const refreshLeaderboard = useCallback(async (signal) => {
     setLoading(true);
     try {
       const data = await fetchLeaderboard();
+      // Guard: don't update state if the effect was cleaned up
+      if (signal?.aborted) return;
       setLeaderboard(data);
       setError('');
     } catch (err) {
+      if (signal?.aborted) return; // Ignore abort errors
       console.error('Failed to fetch leaderboard:', err);
       setError('Could not load leaderboard data.');
     } finally {
-      setLoading(false);
+      if (!signal?.aborted) setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
-    refreshLeaderboard();
-  }, []);
+    const controller = new AbortController();
+    refreshLeaderboard(controller.signal);
+    return () => controller.abort();
+  }, [refreshLeaderboard]);
 
   return { leaderboard, loading, error, refreshLeaderboard };
 };

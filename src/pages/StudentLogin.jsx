@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { studentLogin as studentLoginApi } from '@/api';
-import { ArrowRight, AlertCircle, Loader2, ShieldCheck, User, MapPin, BookOpen, Star, Wifi } from 'lucide-react';
+import { ArrowRight, AlertCircle, Loader2, ShieldCheck, User, MapPin, BookOpen, Star, Wifi, Eye, EyeOff } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 /* ─── Image slideshow data ─────────────────────────────────────── */
@@ -19,14 +19,18 @@ const FEATURES = [
   { icon: Star,     label: 'Friendly Staff'       },
 ];
 
+const REMEMBER_KEY = 'rfid_remembered_uid';
+
 const StudentLogin = () => {
-  const [roll, setRoll]         = useState('');
-  const [password, setPassword] = useState('');
-  const [loading, setLoading]   = useState(false);
-  const [error, setError]       = useState('');
-  const [slideIdx, setSlideIdx] = useState(0);
-  const { login }               = useAuth();
-  const navigate                = useNavigate();
+  const [roll, setRoll]             = useState(() => localStorage.getItem(REMEMBER_KEY) || '');
+  const [password, setPassword]     = useState('');
+  const [loading, setLoading]       = useState(false);
+  const [error, setError]           = useState('');
+  const [slideIdx, setSlideIdx]     = useState(0);
+  const [showPassword, setShowPwd]  = useState(false);
+  const [rememberUid, setRemember]  = useState(() => !!localStorage.getItem(REMEMBER_KEY));
+  const { login }                   = useAuth();
+  const navigate                    = useNavigate();
 
   /* auto-advance slideshow */
   useEffect(() => {
@@ -43,11 +47,18 @@ const StudentLogin = () => {
 
     try {
       const result = await studentLoginApi(roll.toUpperCase(), password);
-      
+
       if (result.student.role === 'MASTER') {
         setError('Master keys cannot be used for student login.');
         setLoading(false);
         return;
+      }
+
+      // Persist UID if "Remember" is checked
+      if (rememberUid) {
+        localStorage.setItem(REMEMBER_KEY, roll.toUpperCase());
+      } else {
+        localStorage.removeItem(REMEMBER_KEY);
       }
 
       login({
@@ -55,7 +66,7 @@ const StudentLogin = () => {
         name:  result.student.name || 'Student',
         uid:   result.student.uid,
         role:  'student',
-        token: result.token,   // JWT for requireStudent-guarded endpoints
+        token: result.token,
       });
       navigate(`/student/${result.student.roll_no}`);
     } catch (err) {
@@ -224,15 +235,41 @@ const StudentLogin = () => {
 
               <div className="field-group">
                 <label htmlFor="password" className="field-label">Password</label>
-                <input
-                  id="password"
-                  type="password"
-                  placeholder="Enter your password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="field-input"
-                />
+                <div style={{ position: 'relative' }}>
+                  <input
+                    id="password"
+                    type={showPassword ? 'text' : 'password'}
+                    placeholder="Enter your password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="field-input"
+                    style={{ paddingRight: '2.5rem' }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPwd(v => !v)}
+                    aria-label={showPassword ? 'Hide password' : 'Show password'}
+                    style={{
+                      position: 'absolute', right: '0.75rem', top: '50%',
+                      transform: 'translateY(-50%)', background: 'none', border: 'none',
+                      cursor: 'pointer', color: 'rgba(255,255,255,0.5)', padding: '0.2rem',
+                    }}
+                  >
+                    {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
+                </div>
               </div>
+
+              {/* Remember UID */}
+              <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', userSelect: 'none' }}>
+                <input
+                  type="checkbox"
+                  checked={rememberUid}
+                  onChange={e => setRemember(e.target.checked)}
+                  style={{ accentColor: '#6366f1', width: '15px', height: '15px' }}
+                />
+                <span style={{ fontSize: '0.78rem', color: 'rgba(255,255,255,0.6)' }}>Remember my Card UID</span>
+              </label>
 
               <AnimatePresence>
                 {error && (

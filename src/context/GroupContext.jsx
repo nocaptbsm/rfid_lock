@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import {
   fetchMyGroup,
@@ -11,6 +11,9 @@ import {
   fetchGroupLeaderboard,
 } from '@/api/index';
 
+// How often to poll for new invites (ms)
+const INVITE_POLL_INTERVAL = 15_000;
+
 const GroupContext = createContext(null);
 
 export const GroupProvider = ({ children }) => {
@@ -22,6 +25,9 @@ export const GroupProvider = ({ children }) => {
   const [sentInvites, setSentInvites]   = useState([]);
   const [loading, setLoading]           = useState(true);
   const [inviteError, setInviteError]   = useState(null);
+
+  // Ref keeps the latest invite count so the polling closure can compare
+  const prevInviteCount = useRef(0);
 
   // ── Refresh: uses allSettled so one failing call doesn't kill the rest ────
   const refresh = useCallback(async () => {
@@ -63,6 +69,29 @@ export const GroupProvider = ({ children }) => {
   }, [user?.roll]);
 
   useEffect(() => { refresh(); }, [refresh]);
+
+  // ── Invite polling: check for new invites every 15 s ─────────────────────
+  useEffect(() => {
+    if (!user?.roll) return;
+
+    const poll = async () => {
+      try {
+        const invites = await fetchMyGroupInvites();
+        const incoming = Array.isArray(invites) ? invites : [];
+        setPendingInvites(incoming);
+        // If the count grew since last check, also refresh full state
+        if (incoming.length > prevInviteCount.current) {
+          refresh().catch(() => {});
+        }
+        prevInviteCount.current = incoming.length;
+      } catch {
+        // Silently ignore — main refresh handles error surfacing
+      }
+    };
+
+    const timer = setInterval(poll, INVITE_POLL_INTERVAL);
+    return () => clearInterval(timer);
+  }, [user?.roll, refresh]);
 
   // ── Actions ───────────────────────────────────────────────────────────────
 

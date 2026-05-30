@@ -1,5 +1,5 @@
 import React from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useParams, Navigate } from 'react-router-dom';
 import { 
   Clock, 
   Calendar, 
@@ -28,28 +28,21 @@ import LeaderboardPanel from '@/components/panels/LeaderboardPanel';
 import FeedbackSection from '@/components/panels/FeedbackSection';
 import GroupNotifications from '@/components/panels/GroupNotifications';
 import { useGroup } from '@/context/GroupContext';
-import { MOCK_STUDENT_DATA } from '@/utils/mockData';
+import { fmtDuration, fmtTime, fmtDateLong } from '@/utils/formatUtils';
 
-const fmtDuration = (mins) => {
-  if (!mins) return '0m';
-  const h = Math.floor(mins / 60);
-  const m = mins % 60;
-  return h > 0 ? `${h}h ${m}m` : `${m}m`;
-};
+// Legacy aliases kept for local use
+const fmtDate = fmtDateLong;
 
-const fmtTime = (iso) => {
-  if (!iso) return '--';
-  return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-};
-
-const fmtDate = (iso) => {
-  if (!iso) return '--';
-  return new Date(iso).toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric' });
-};
 
 const StudentDashboard = () => {
   const { user } = useAuth();
   const { roll } = useParams();
+
+  // CRITICAL-6: Block students from viewing another student's dashboard
+  if (roll && user?.roll && roll !== user.roll) {
+    return <Navigate to={`/student/${user.roll}`} replace />;
+  }
+
   const targetRoll = roll || user?.roll;
 
   const {
