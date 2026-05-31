@@ -25,3 +25,6 @@ dist-ssr
 
 # Firmware secrets
 firmware/secrets.h
+
+# Environment variables
+.env
